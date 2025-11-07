@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "9597600331",
+    "project_id": "music-recommend-f68fa",
+    "storage_bucket": "music-recommend-f68fa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:9597600331:android:0f754cfc6213c4f2ffc3ce",
+        "android_client_info": {
+          "package_name": "com.egoista.japanmusicapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "9597600331-4gga7ff3c09phob6pdfttftfgifihaku.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.egoista.japanmusicapp",
+            "certificate_hash": "f9f2f363107d6b6ede6f9a55f2aa7dd185780714"
+          }
+        },
+        {
+          "client_id": "9597600331-5q75bthvmqql01ga66s528se448eg64u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-EBRLoAhnT6RAuyjVfM5vOlRB4Qs7z3c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "9597600331-5q75bthvmqql01ga66s528se448eg64u.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "9597600331-t17ujmi0a62ddhfdsan66k80h6lv3dh5.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.egoista.japanmusicapp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

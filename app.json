@@ -1,41 +1,71 @@
 {
   "expo": {
-    "name": "japan-music-app",
+    "name": "Halo",
     "slug": "japan-music-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.egoista.japanmusicapp"
     },
     "android": {
+      "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
+      },
+      "package": "com.egoista.japanmusicapp",
+      "config": {
+        "googleSignIn": {
+          "webClientId": "9597600331-5q75bthvmqql01ga66s528se448eg64u.apps.googleusercontent.com"
+        }
       }
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "webClientId": "9597600331-5q75bthvmqql01ga66s528se448eg64u.apps.googleusercontent.com",
+          "iosUrlScheme": "com.googleusercontent.apps.9597600331-t17ujmi0a62ddhfdsan66k80h6lv3dh5"
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "97b113d6-942e-4893-b687-5d6a41c64754"
+      }
+    },
+    "owner": "egoista"
   }
 }

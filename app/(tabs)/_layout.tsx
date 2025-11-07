@@ -1,45 +1,32 @@
+// app/(tabs)/_layout.tsx
 import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
-
-import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
-import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+      screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarBackground: TabBarBackground,
-        tabBarStyle: Platform.select({
-          ios: {
-            // Use a transparent background on iOS to show the blur effect
-            position: 'absolute',
-          },
-          default: {},
-        }),
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
+        tabBarShowLabel: false, // 텍스트 제거
+        tabBarActiveTintColor: '#ff4f4f', // 활성 아이콘 색상
+        tabBarStyle: {
+          backgroundColor: 'white',
+        },
+        tabBarIcon: ({ color }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+
+          if (route.name === 'index') iconName = 'musical-notes';
+          else if (route.name === 'favorites') iconName = 'heart';
+          else if (route.name === 'settings') iconName = 'settings';
+          else iconName = 'ellipse';
+
+          return <Ionicons name={iconName} size={26} color={color} />; // ✅ 작고 안정적인 크기
+        },
+      })}
+    >
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="favorites" />
+      <Tabs.Screen name="settings" />
     </Tabs>
   );
 }
