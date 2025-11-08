@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth, getUserId } from '@/lib/contexts/AuthContext'; // ✅ 수정됨
+import { useAuth, getUserId } from '@/lib/contexts/AuthContext';
 
 // 동적 import를 위한 Firebase 서비스
 let FirestoreRatingsService: any = null;
@@ -62,16 +62,16 @@ interface RatingsProviderProps {
 }
 
 export const RatingsProvider: React.FC<RatingsProviderProps> = ({ children }) => {
-  const [ratings, setRatings] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState(0);
-  
-  const { user, isFirebaseReady } = useAuth();
-  const [ratingsService, setRatingsService] = useState<any>(null);
+  const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState(0);
+  
+  const { user, isFirebaseReady } = useAuth();
+  const [ratingsService, setRatingsService] = useState<any>(null);
 
-  // 🆕 별점 변경 콜백 참조
-  const ratingChangeCallbackRef = useRef<RatingChangeCallback | null>(null);
+  const ratingChangeCallbackRef = useRef<RatingChangeCallback | null>(null);
+  const lastUserIdRef = useRef<string | null>(null);
 
   // 🆕 별점 변경 콜백 등록 함수
   const setOnRatingChangeCallback = useCallback((callback: RatingChangeCallback | null) => {
@@ -93,14 +93,6 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({ children }) =>
     }
   };
 
-  // 🔥 Firebase 서비스 초기화 - 사용자 ID가 있을 때만
-  useEffect(() => {
-    const userId = getSafeUserIdForRatings();
-    if (isFirebaseReady && userId) {
-      initializeFirebaseService(userId);
-    }
-  }, [isFirebaseReady, user?.uid]); // user?.uid로 의존성 명시
-
   const initializeFirebaseService = async (userId: string): Promise<void> => {
     const serviceReady = await loadFirebaseService();
     if (serviceReady && createRatingsService) {
@@ -110,17 +102,39 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({ children }) =>
     }
   };
 
+  useEffect(() => {
+    const currentUserId = user ? user.uid : null;
+
+    // 사용자 ID가 변경되었는지 확인 (로그인/로그아웃 포함)
+    if (currentUserId !== lastUserIdRef.current) {
+      console.log(`AUTH: 사용자 변경 감지. ${lastUserIdRef.current?.slice(-4)} -> ${currentUserId?.slice(-4)}`);
+      
+      // 1. 이전 상태 초기화
+      setRatings({});
+      setLastSyncTime(0);
+      setRatingsService(null);
+      
+      if (currentUserId) {
+        // 2. 새 사용자 로그인: 서비스 초기화 및 데이터 로드
+        console.log('AUTH: 새 사용자, 서비스 초기화 및 데이터 동기화 시작...');
+        initializeFirebaseService(currentUserId);
+        // loadInitialData(); // 로컬 데이터 로드
+        forceSyncFromCloud(currentUserId); // ☁️ 새 사용자의 클라우드 데이터 강제 동기화
+      } else {
+        // 3. 로그아웃: 로컬 스토리지 정리
+        console.log('AUTH: 로그아웃, 로컬 별점 데이터 삭제');
+        AsyncStorage.removeItem(STORAGE_KEYS.RATINGS);
+        AsyncStorage.removeItem(STORAGE_KEYS.SYNC_STATUS);
+      }
+    }
+
+    lastUserIdRef.current = currentUserId; // 4. 마지막 사용자 ID 업데이트
+  }, [user]); // user 객체가 변경될 때마다 실행
+
   // 📱 앱 시작 시 데이터 로드
   useEffect(() => {
     loadInitialData();
   }, []);
-
-  // 🔄 인증 완료 후 클라우드 동기화
-  useEffect(() => {
-    if (ratingsService && !loading) {
-      conditionalSyncFromCloud();
-    }
-  }, [ratingsService, loading]);
 
   // 📥 초기 데이터 로드 (로컬 우선)
   const loadInitialData = async (): Promise<void> => {
@@ -291,15 +305,51 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({ children }) =>
     }
   };
 
-  const forceSyncFromCloud = async (): Promise<void> => {
-    if (!ratingsService) {
-      if (__DEV__) console.warn('Firebase 서비스가 준비되지 않았습니다');
+  const forceSyncFromCloud = async (overrideUserId?: string): Promise<void> => {
+    const serviceToUse = ratingsService;
+    const userIdToUse = overrideUserId || (user ? user.uid : null);
+
+    if (!serviceToUse && !userIdToUse) {
+      if (__DEV__) console.warn('Firebase 서비스 준비 안됨, 동기화 불가');
       return;
     }
 
-    if (__DEV__) console.log('🔄 수동 별점 동기화 시작...');
-    await syncFromCloud(); // 기존 함수 재사용
-    if (__DEV__) console.log('✅ 수동 별점 동기화 완료');
+    let service = serviceToUse;
+    if (!service && userIdToUse) {
+      // 서비스가 아직 준비되지 않았지만 ID가 있다면 즉시 생성
+      const serviceReady = await loadFirebaseService();
+      if (serviceReady && createRatingsService) {
+        service = createRatingsService(userIdToUse);
+        setRatingsService(service); // 상태에도 저장
+      }
+    }
+
+    if (!service) {
+       if (__DEV__) console.warn('Firebase 서비스 생성 실패, 동기화 불가');
+       return;
+    }
+
+    if (__DEV__) console.log(`🔄 수동 별점 동기화 시작... (User: ${userIdToUse?.slice(-4)})`);
+    
+    // syncFromCloud가 serviceToUse를 사용하도록 수정
+    try {
+      setIsSyncing(true);
+      
+      const cloudRatings = await service.downloadAllRatings(); // service를 명시적으로 사용
+      
+      const mergedRatings = { ...ratings, ...cloudRatings };
+      await saveRatingsLocally(mergedRatings);
+      
+      const syncStatus: SyncStatus = { lastSyncTime: Date.now() };
+      await AsyncStorage.setItem(STORAGE_KEYS.SYNC_STATUS, JSON.stringify(syncStatus));
+      setLastSyncTime(syncStatus.lastSyncTime);
+      
+      if (__DEV__) console.log('✅ 수동 별점 동기화 완료');
+    } catch (error: any) {
+      if (__DEV__) console.error('❌ 클라우드 동기화 실패:', error);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   return (
