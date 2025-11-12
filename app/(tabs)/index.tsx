@@ -312,37 +312,25 @@ export default function IndexScreen() {
   };
 
   const finalSongList = useMemo(() => {
-    const safeSongs = Array.isArray(songs) ? songs : [];
+    const safeSongs = Array.isArray(songs) ? songs : []; // 🟥 [수정] 'hasRecommendations' if 문을 제거합니다. // 🟥 'useSongs' 훅에서 이미 '기본순'(추천순)으로 정렬된 'songs' 배열이 넘어옵니다. // ⚠️ '기본순'을 기반으로, 별점을 매긴 곡을 항상 위로 올리도록 2차 정렬합니다.
 
-    // 추천 목록이 있으면, useSongs가 정렬한 순서 그대로 사용
-    if (hasRecommendations) {
-      console.log("✅ 추천 순서 사용");
-      return safeSongs;
-    }
-
-    // 추천 목록이 없으면(실패했거나), Problem 4의 정렬 로직 적용
-    console.log("⚠️ 추천 순서 없음 - 별점 기반 폴백 정렬 적용");
+    console.log("✅ 별점 기반 2차 정렬 적용 (Rated songs first)");
     return [...safeSongs].sort((a, b) => {
-      // getRating은 훅이 아니므로 useMemo 내부에서 안전하게 사용 가능
       const ratingA = getRating(a.videoId);
-      const ratingB = getRating(b.videoId);
+      const ratingB = getRating(b.videoId); // 1. A, B 둘 다 별점 있음 (높은 순)
 
-      // 1. A, B 둘 다 별점 있음 (높은 순)
       if (ratingA > 0 && ratingB > 0) {
         return ratingB - ratingA;
-      }
-      // 2. A만 별점 있음 (A가 위로)
+      } // 2. A만 별점 있음 (A가 위로)
       if (ratingA > 0 && ratingB === 0) {
         return -1;
-      }
-      // 3. B만 별점 있음 (B가 위로)
+      } // 3. B만 별점 있음 (B가 위로)
       if (ratingA === 0 && ratingB > 0) {
         return 1;
-      }
-      // 4. 둘 다 별점 없음 (기존 순서 유지)
+      } // 4. 둘 다 별점 없음 (기존 순서 '기본순' 유지)
       return 0;
     });
-  }, [songs, hasRecommendations, getRating]); // getRating은 안정적이지만 의존성에 추가
+  }, [songs, getRating]);
 
   const filteredData = finalSongList.filter((song) => {
     // ⬅️ finalSongList 사용
