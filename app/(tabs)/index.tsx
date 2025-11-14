@@ -1,17 +1,15 @@
 // app/(tabs)/index.tsx
 
-import { View, TextInput, Text, TouchableOpacity } from "react-native";
+import { View, TextInput, Text, TouchableOpacity, Alert } from "react-native";
 import { useAppStyles } from "@/theme/styles";
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "expo-router";
 import SongList from "@/components/SongList";
 import { useSongs } from "@/lib/hooks/useSongs";
 import { useRatings } from "@/lib/contexts/RatingsContext";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { RefreshProvider, useRefresh } from "@/lib/contexts/RefreshContext";
-import RecommendationUpdateBar from "@/components/RecommendationUpdateBar";
-import { useTheme } from "@/theme/ThemeContext";
 import LoadingScreen from "@/components/LoadingScreen";
+import { Ionicons } from "@expo/vector-icons";
 
 // 필터 타입 정의
 type RatingFilter = "all" | "rated" | "unrated";
@@ -30,8 +28,6 @@ interface IndexContentProps {
   filteredData: any[];
   isUpdating: boolean;
   pendingRecommendationUpdate: PendingRecommendationUpdate;
-  applyPendingRecommendations: () => Promise<void>;
-  cancelPendingRecommendations: () => void;
 }
 
 function IndexContent({
@@ -40,23 +36,21 @@ function IndexContent({
   filteredData,
   isUpdating,
   pendingRecommendationUpdate,
-  applyPendingRecommendations,
-  cancelPendingRecommendations,
 }: IndexContentProps) {
   const styles = useAppStyles();
   const { getRating } = useRatings();
-  const { theme } = useTheme();
 
-  const { isRefreshing, canRefresh, remainingCooldown } = useRefresh();
+  const { isRefreshing, canRefresh, remainingCooldown, refreshData } =
+    useRefresh();
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
 
   const getRefreshMessage = (): string => {
-    if (isRefreshing) return "곡 목록과 별점을 새로고침 중...";
-    if (!canRefresh && remainingCooldown > 0) {
-      const safeRemainingTime =
-        typeof remainingCooldown === "number" ? remainingCooldown : 0;
-      return `잠시 후 다시 시도해주세요 (${safeRemainingTime}초)`;
-    }
+    const isRecalculating =
+      pendingRecommendationUpdate.isScheduled ||
+      pendingRecommendationUpdate.isCalculating;
+
+    if (isRefreshing) return "새로고침 중...";
+    if (isRecalculating) return "추천 목록을 계산 중입니다..."; // ➕ 계산 중 메시지
     if (isUpdating) return "새로운 곡을 불러오는 중...";
     return "";
   };
@@ -90,18 +84,6 @@ function IndexContent({
 
   const safeFilteredData = Array.isArray(filteredData) ? filteredData : [];
   const finalFilteredData = applyRatingFilter(safeFilteredData);
-
-  const handleApplyRecommendations = async () => {
-    try {
-      await applyPendingRecommendations();
-    } catch (error) {
-      console.error("추천 적용 실패:", error);
-    }
-  };
-
-  const handleCancelRecommendations = () => {
-    cancelPendingRecommendations();
-  };
 
   const renderFilterButtons = () => {
     const filters: { key: RatingFilter; label: string; icon: string }[] = [
@@ -174,36 +156,68 @@ function IndexContent({
     );
   };
 
-  const isRecommendationBarVisible =
+  const isRecalculating =
     pendingRecommendationUpdate.isScheduled ||
-    !!pendingRecommendationUpdate.newOrder;
-  const recommendationBarHeight = isRecommendationBarVisible ? 120 : 0;
+    pendingRecommendationUpdate.isCalculating;
+  const isCooldownActive = !canRefresh;
+
+  const isButtonBusy = isRefreshing || isRecalculating || isUpdating;
+
+  const handleRefreshPress = () => {
+    if (isButtonBusy) {
+      // 이미 작업 중일 때
+      if (isRecalculating) {
+        Alert.alert(
+          "계산 중",
+          "별점 데이터를 계산 중입니다. 계산이 종료된 후 다시 눌러주세요"
+        );
+      } else if (isRefreshing) {
+        // 쿨다운 알림
+        const safeRemainingTime =
+          typeof remainingCooldown === "number" ? remainingCooldown : 0;
+        Alert.alert(
+          "쿨다운",
+          `새로고침을 1분에 1번 가능합니다 (${safeRemainingTime}초 남음)`
+        );
+      } else if (isUpdating) {
+        Alert.alert("동기화 중", "새로운 곡 목록을 불러오는 중입니다.");
+      }
+      return;
+    }
+
+    // 🔧 [수정] 쿨다운 상태만 따로 체크
+    if (isCooldownActive) {
+      const safeRemainingTime =
+        typeof remainingCooldown === "number" ? remainingCooldown : 0;
+      Alert.alert(
+        "쿨다운",
+        `새로고침을 1분에 1번 가능합니다 (${safeRemainingTime}초 남음)`
+      );
+      return;
+    } // 모든 조건 통과: 새로고침 실행
+
+    if (refreshData) {
+      console.log("🔘 새로고침 버튼 클릭 -> refreshData() 호출");
+      refreshData();
+    }
+  };
 
   return (
     <View style={[styles.container, { paddingTop: 50 }]}>
-      <RecommendationUpdateBar
-        isVisible={isRecommendationBarVisible}
-        isCalculating={pendingRecommendationUpdate.isCalculating}
-        countdown={pendingRecommendationUpdate.countdown}
-        hasNewOrder={!!pendingRecommendationUpdate.newOrder}
-        onApply={handleApplyRecommendations}
-        onCancel={handleCancelRecommendations}
-      />
-
       <View
         style={{
-          marginTop: recommendationBarHeight,
           flex: 1,
         }}
       >
         {refreshMessage && refreshMessage.length > 0 && (
           <View
             style={{
-              backgroundColor: isRefreshing ? "#e3f2fd" : "#f5f5f5",
+              backgroundColor:
+                isRefreshing || isRecalculating ? "#e3f2fd" : "#f5f5f5",
               padding: 8,
               marginBottom: 8,
               borderRadius: 4,
-              borderWidth: isRefreshing ? 1 : 0,
+              borderWidth: isRefreshing || isRecalculating ? 1 : 0,
               borderColor: "#2196f3",
             }}
           >
@@ -211,45 +225,63 @@ function IndexContent({
               style={{
                 textAlign: "center",
                 fontSize: 12,
-                color: isRefreshing ? "#1976d2" : "#666",
-                fontWeight: isRefreshing ? "500" : "normal",
+                color: isRefreshing || isRecalculating ? "#1976d2" : "#666",
+                fontWeight: isRefreshing || isRecalculating ? "500" : "normal",
               }}
             >
               {refreshMessage}
             </Text>
           </View>
         )}
-
-        <TextInput
-          placeholder="곡 제목 또는 아티스트 검색"
-          placeholderTextColor="#aaa"
-          value={searchText}
-          onChangeText={setSearchText}
+        <View
           style={{
-            height: 40,
-            borderColor: "#ccc",
-            borderWidth: 1,
-            borderRadius: 8,
-            paddingHorizontal: 12,
+            flexDirection: "row",
+            alignItems: "center",
             marginBottom: 16,
-            color: styles.text.color,
           }}
-        />
-
+        >
+          <TextInput
+            placeholder="곡 제목 또는 아티스트 검색"
+            placeholderTextColor="#aaa"
+            value={searchText}
+            onChangeText={setSearchText}
+            style={{
+              height: 40,
+              borderColor: "#ccc",
+              borderWidth: 1,
+              borderRadius: 8,
+              paddingHorizontal: 12,
+              color: styles.text.color,
+              flex: 1,
+              marginRight: 8,
+            }}
+          />
+          <TouchableOpacity
+            onPress={handleRefreshPress}
+            disabled={isButtonBusy}
+            style={{
+              backgroundColor: isButtonBusy ? "#ccc" : "#ff4f4f",
+              width: 40,
+              height: 40,
+              borderRadius: 8,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <Ionicons name="refresh" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
         {renderFilterButtons()}
         {renderResultCount()}
-
         <SongList
           songs={Array.isArray(finalFilteredData) ? finalFilteredData : []}
           showAds={true}
-          enableRefresh={true}
         />
       </View>
     </View>
   );
 }
 
-// ✅ 메인 컴포넌트 - navigation 로직 제거
 export default function IndexScreen() {
   const styles = useAppStyles();
   const [searchText, setSearchText] = useState("");
@@ -274,15 +306,13 @@ export default function IndexScreen() {
 
   const songData = useSongs(authStateForUseSongs);
   const {
-    songs,
-    hasRecommendations,
+    songs, // ...
     loading: songsLoading,
     error,
     isUpdating,
     refreshData: refreshSongs,
     pendingRecommendationUpdate,
-    applyPendingRecommendations,
-    cancelPendingRecommendations,
+    scheduleRecommendationUpdate,
     _internal,
   } = songData;
 
@@ -294,17 +324,18 @@ export default function IndexScreen() {
 
   useEffect(() => {
     if (_internal?.onRatingChanged && setOnRatingChangeCallback) {
-      setOnRatingChangeCallback(_internal.onRatingChanged);
-
-      return () => {
-        setOnRatingChangeCallback(null);
-      };
     }
   }, [Boolean(_internal?.onRatingChanged), Boolean(setOnRatingChangeCallback)]);
 
   const refreshAll = async (): Promise<void> => {
     try {
+      console.log("🔄 [RefreshButton] 통합 새로고침 시작...");
+      console.log("🧮 1단계: 개인화 추천 재계산 요청 (즉시)");
+      scheduleRecommendationUpdate(0);
+
+      console.log("📥 2단계: songs.json 및 ratings 동기화");
       await Promise.all([refreshSongs(), refreshRatings()]);
+      console.log("✅ 2단계 완료 (songs.json, ratings)");
     } catch (error: any) {
       console.error("새로고침 실패:", error);
       throw error;
@@ -312,28 +343,27 @@ export default function IndexScreen() {
   };
 
   const finalSongList = useMemo(() => {
-    const safeSongs = Array.isArray(songs) ? songs : []; // 🟥 [수정] 'hasRecommendations' if 문을 제거합니다. // 🟥 'useSongs' 훅에서 이미 '기본순'(추천순)으로 정렬된 'songs' 배열이 넘어옵니다. // ⚠️ '기본순'을 기반으로, 별점을 매긴 곡을 항상 위로 올리도록 2차 정렬합니다.
+    const safeSongs = Array.isArray(songs) ? songs : [];
 
     console.log("✅ 별점 기반 2차 정렬 적용 (Rated songs first)");
     return [...safeSongs].sort((a, b) => {
       const ratingA = getRating(a.videoId);
-      const ratingB = getRating(b.videoId); // 1. A, B 둘 다 별점 있음 (높은 순)
+      const ratingB = getRating(b.videoId);
 
       if (ratingA > 0 && ratingB > 0) {
         return ratingB - ratingA;
-      } // 2. A만 별점 있음 (A가 위로)
+      }
       if (ratingA > 0 && ratingB === 0) {
         return -1;
-      } // 3. B만 별점 있음 (B가 위로)
+      }
       if (ratingA === 0 && ratingB > 0) {
         return 1;
-      } // 4. 둘 다 별점 없음 (기존 순서 '기본순' 유지)
+      }
       return 0;
     });
   }, [songs, getRating]);
 
   const filteredData = finalSongList.filter((song) => {
-    // ⬅️ finalSongList 사용
     if (!song || typeof song !== "object") return false;
     const safeTitle = song.title || "";
     const safeArtist = song.artist || "";
@@ -344,7 +374,6 @@ export default function IndexScreen() {
     );
   });
 
-  // ✅ 로딩 중일 때만 로딩 화면 표시 (인증 체크 제거)
   if (authLoading || songsLoading) {
     return <LoadingScreen message="음악 데이터를 불러오는 중..." />;
   }
@@ -377,8 +406,6 @@ export default function IndexScreen() {
         filteredData={filteredData}
         isUpdating={isUpdating}
         pendingRecommendationUpdate={pendingRecommendationUpdate}
-        applyPendingRecommendations={applyPendingRecommendations}
-        cancelPendingRecommendations={cancelPendingRecommendations}
       />
     </RefreshProvider>
   );

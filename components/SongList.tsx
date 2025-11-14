@@ -1,15 +1,14 @@
 // components/SongList.tsx
 
 import React from "react";
-import { View, Text, FlatList, TouchableOpacity, Image, RefreshControl } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, Image } from "react-native";
 import { useAppStyles } from "@/theme/styles";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-// import MyBannerAd from "./MyBannerAd";
 import { Song } from "@/lib/types/song";
+// import MyBannerAd from "./MyBannerAd";
 import { useFavorites } from "@/lib/contexts/FavoritesContext";
 import { useRatings } from "@/lib/contexts/RatingsContext";
-import { useRefresh } from "@/lib/contexts/RefreshContext";
 
 // 타입 정의
 export type SongItem = {
@@ -30,24 +29,14 @@ type SongListProps = {
   enableRefresh?: boolean; // Pull-to-refresh 활성화 여부
 };
 
-export default function SongList({
-  songs,
-  showAds = true,
-  enableRefresh = false,
-}: SongListProps) {
+export default function SongList({ songs, showAds = true }: SongListProps) {
   const styles = useAppStyles();
   const router = useRouter();
   const { toggleFavorite, isFavorite } = useFavorites();
   const { setRating, getRating } = useRatings();
-  
-  // 새로고침 컨텍스트 (enableRefresh가 true일 때만 사용)
-  const refreshContext = enableRefresh ? useRefresh() : null;
 
   // 광고 삽입
-  const insertAds = (
-    items: Song[],
-    interval = 5
-  ): ListItem[] => {
+  const insertAds = (items: Song[], interval = 5): ListItem[] => {
     const merged: ListItem[] = [];
     for (let i = 0; i < items.length; i++) {
       if (showAds && i > 0 && i % interval === 0) {
@@ -68,7 +57,7 @@ export default function SongList({
   const handleStarPress = (videoId: string, starIndex: number) => {
     const newRating = starIndex + 1; // 1-5점
     const currentRating = getRating(videoId);
-    
+
     // 같은 별을 다시 클릭하면 별점 제거 (0점)
     if (currentRating === newRating) {
       setRating(videoId, 0);
@@ -80,12 +69,12 @@ export default function SongList({
   // 별점 UI 렌더링
   const renderStars = (videoId: string) => {
     const currentRating = getRating(videoId);
-    
+
     return (
       <View style={{ flexDirection: "row", marginTop: 4 }}>
         {[0, 1, 2, 3, 4].map((starIndex) => {
           const isSelected = starIndex < currentRating;
-          
+
           return (
             <TouchableOpacity
               key={starIndex}
@@ -121,17 +110,6 @@ export default function SongList({
     <FlatList<ListItem>
       data={dataWithAds}
       keyExtractor={(item) => item.key}
-      refreshControl={
-        enableRefresh && refreshContext ? (
-          <RefreshControl
-            refreshing={refreshContext.isRefreshing}
-            onRefresh={refreshContext.refreshData}
-            enabled={refreshContext.canRefresh}
-            tintColor="#666" // iOS
-            colors={['#666']} // Android
-          />
-        ) : undefined
-      }
       renderItem={({ item }) => {
         if (item.type === "ad") {
           // return (
