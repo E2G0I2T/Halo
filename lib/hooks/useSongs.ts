@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Song } from "@/lib/types/song";
 import { getFunctions, httpsCallable } from "firebase/functions"; // ✅ 'firebase/functions'에서 올바르게 임포트됩니다.
 import { User } from "firebase/auth";
@@ -14,8 +14,8 @@ import {
 
 import {
   getUserRecommendations,
-  sortSongsByRecommendations,
   refreshRecommendations,
+  sortSongsByRecommendations,
 } from "@/lib/services/recommendationService";
 
 // 추천 업데이트 상태 타입
@@ -58,6 +58,7 @@ interface UseSongsReturn {
   refreshData: () => Promise<void>;
   hasRecommendations: boolean;
   isLoadingRecommendations: boolean;
+  recommendationOrder: string[];
   pendingRecommendationUpdate: PendingRecommendationUpdate;
   applyPendingRecommendations: () => Promise<void>;
   cancelPendingRecommendations: () => void;
@@ -70,7 +71,6 @@ interface UseSongsReturn {
 
 export const useSongs = (authState?: AuthState): UseSongsReturn => {
   // 기본 상태들
-  const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false); // 추천 관련 상태들
@@ -78,7 +78,8 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
   const [hasRecommendations, setHasRecommendations] = useState(false);
   const [isLoadingRecommendations, setIsLoadingRecommendations] =
     useState(false);
-  const [recommendationOrder, setRecommendationOrder] = useState<string[]>([]); // 부드러운 업데이트 상태
+  const [recommendationOrder, setRecommendationOrder] = useState<string[]>([]);
+  const [originalSongs, setOriginalSongs] = useState<Song[]>([]);
 
   const [pendingRecommendationUpdate, setPendingRecommendationUpdate] =
     useState<PendingRecommendationUpdate>({
@@ -86,8 +87,6 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
       countdown: 0,
       isCalculating: false,
     }); // 원본 곡 목록
-
-  const [originalSongs, setOriginalSongs] = useState<Song[]>([]); // Auth 상태 (props에서 가져오기)
 
   const user = authState?.user || null;
   const isFirebaseReady = authState?.isFirebaseReady || false;
@@ -112,7 +111,7 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
       setPendingRecommendationUpdate((prev) => ({
         ...prev,
         isCalculating: true,
-        isScheduled: true, // ➕ '계산 중' 상태를 UI에 알리기 위해 true로 설정
+        isScheduled: true,
       }));
 
       let attempt = 0;
@@ -123,7 +122,6 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
         attempt++;
         console.log(`🔄 추천 조회 시도 ${attempt}/${maxAttempts}`);
         if (attempt > 1) {
-          // 2번째 시도부터 10초 대기
           console.log(`⏳ 다음 시도까지 10초 대기...`);
           await new Promise((resolve) => setTimeout(resolve, 10000));
           console.log(`✅ 10초 대기 완료! (${attempt}차 시도)`);
@@ -131,8 +129,6 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
 
         try {
           console.log(`🎯 ${attempt}차 추천 조회 시작...`);
-          console.log("📤 전송할 userId:", userId); // 확인 // Functions 직접 호출
-
           const functions = getFunctions();
           const generatePersonalized = httpsCallable(
             functions,
@@ -142,21 +138,31 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
           const response = result.data as any;
           console.log("📡 개인화 Functions 응답:", response);
 
-          let recommendations = [];
-          if (response && !response.isDefault) {
-            if (response.recommendations?.recommendations?.personalizedOrder) {
-              recommendations =
-                response.recommendations.recommendations.personalizedOrder;
-            } else if (response.recommendations?.personalizedOrder) {
+          let recommendations: string[] = [];
+
+          if (response && !response.isDefault && response.recommendations) {
+            if (
+              response.recommendations.songs &&
+              Array.isArray(response.recommendations.songs)
+            ) {
+              recommendations = response.recommendations.songs;
+            } else if (
+              response.recommendations?.personalizedOrder &&
+              Array.isArray(response.recommendations.personalizedOrder)
+            ) {
               recommendations = response.recommendations.personalizedOrder;
             }
           }
-
           if (recommendations.length > 0) {
+            console.log(
+              `✅ ${attempt}차 시도 성공: ${recommendations.length}곡`
+            );
             finalRecommendations = recommendations;
-            break; // 성공 시 루프 탈출
+            break;
           } else {
-            console.log(`❌ ${attempt}차 시도 실패: 빈 추천`);
+            console.log(
+              `❌ ${attempt}차 시도 실패: 빈 추천 (songs 키를 확인하세요)`
+            );
           }
         } catch (error) {
           console.error(`❌ ${attempt}차 시도 중 오류:`, error);
@@ -164,15 +170,8 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
       }
 
       if (finalRecommendations.length > 0) {
-        // ‼️ [수정] ‼️
-        // newOrder에 저장하는 대신, 즉시 자동 적용합니다.
         console.log("✨ 새로운 추천 순서 자동 적용 중...");
-        const sortedSongs = sortSongsByRecommendations(
-          originalSongs, // 훅 내부의 원본 곡 목록 상태
-          finalRecommendations
-        );
 
-        setSongs(sortedSongs); // ⬅️ 즉시 UI 업데이트
         setRecommendationOrder(finalRecommendations);
         setHasRecommendations(true);
         console.log("✅ 새로운 추천 순서 자동 적용 완료");
@@ -198,7 +197,7 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
         timeoutId: undefined,
       });
     }
-  }, [user?.uid, originalSongs]); // 🔧 별점 변경 처리 함수 (Auth 타이밍 이슈 해결의 핵심)
+  }, [user?.uid, originalSongs]);
 
   const onRatingChanged = useCallback(
     (videoId: string, newRating: number, oldRating: number) => {
@@ -216,8 +215,8 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
 
       updateRecommendationsInBackground();
     },
-    [pendingRecommendationUpdate.timeoutId, updateRecommendationsInBackground]
-  ); // 🔧 [수정] 대기 중인 추천 취소/적용 (타입 호환을 위해 빈 함수로 둠)
+    [updateRecommendationsInBackground]
+  );
 
   const cancelPendingRecommendations = useCallback(() => {
     console.log("cancelPendingRecommendations (비활성화됨)");
@@ -249,12 +248,10 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
       );
 
       if (recommendations.length > 0) {
-        console.log("✅ 추천 데이터 로드 성공:", recommendations.length, "곡");
         setHasRecommendations(true);
         setRecommendationOrder(recommendations);
         return recommendations;
       } else {
-        console.log("📭 추천 데이터 없음");
         setHasRecommendations(false);
         setRecommendationOrder([]);
         return [];
@@ -269,39 +266,14 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
     }
   }; // 곡 목록을 추천 순서로 정렬
 
-  const applySongSorting = (
-    rawSongs: Song[],
-    recommendations: string[]
-  ): Song[] => {
-    if (!Array.isArray(rawSongs) || rawSongs.length === 0) {
-      return rawSongs;
-    }
-    if (!Array.isArray(recommendations) || recommendations.length === 0) {
-      console.log("📝 추천 순서 없음, 원본 순서 유지");
-      return rawSongs;
-    }
-    console.log("🔀 곡 목록을 추천 순서로 정렬 중...");
-    const sortedSongs = sortSongsByRecommendations(rawSongs, recommendations);
-    console.log("✅ 추천 정렬 완료:", {
-      totalSongs: rawSongs.length,
-      recommendedSongs: recommendations.length,
-      sortedSongs: sortedSongs.length,
-    });
-    return sortedSongs;
-  }; // 초기 데이터 로드
-
   const loadInitialData = async () => {
     try {
       console.log("📥 초기 데이터 로드 시작...");
-
-      // 1. 캐시/폴백으로 원본 곡 목록 확보
       const cachedSongs = await getCachedSongs();
       let initialSongs: Song[] = [];
       if (cachedSongs.length > 0) {
-        console.log("✅ 캐시된 곡 로드:", cachedSongs.length, "개");
         initialSongs = cachedSongs;
       } else {
-        console.log("📦 Fallback 곡 데이터 사용:", fallbackSongs.length, "개");
         initialSongs = fallbackSongs;
       }
       setOriginalSongs(initialSongs);
@@ -309,14 +281,9 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
       // 2. Auth 상태에 따라 추천 목록 로드 (로그인 상태 확인)
       let recommendations: string[] = [];
       if (isAuthReady && user?.uid) {
-        // ⬅️ isAuthReady 체크
-        console.log("📥 초기 로드 중 추천 목록 가져오기...");
-        recommendations = await loadRecommendations(user.uid);
+        await loadRecommendations(user.uid);
       }
 
-      // 3. 정렬된 목록으로 'songs' 상태 설정
-      const sortedSongs = applySongSorting(initialSongs, recommendations);
-      setSongs(sortedSongs); // 4. 백그라운드에서 새 데이터 확인
       const shouldCheck = await shouldCheckForNewData();
       if (shouldCheck) {
         console.log("🔍 [BG] 새 데이터 확인 중...");
@@ -332,10 +299,9 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
       }
     } catch (error: any) {
       console.error("❌ 초기 데이터 로드 실패:", error);
-      if (songs.length === 0) {
+      if (originalSongs.length === 0) {
         // ⬅️ state 'songs'
         setOriginalSongs(fallbackSongs);
-        setSongs(fallbackSongs);
         console.log("🔄 에러 발생, Fallback 데이터 사용");
       }
       setErrorSafely(
@@ -364,22 +330,15 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
 
       let sortedSongs = newSongs;
       if (isAuthReady && user?.uid) {
-        console.log("🎯 추천 데이터도 함께 새로고침...");
         const recommendations = await loadRecommendations(
           user.uid,
           ignoreCache
         );
-        sortedSongs = applySongSorting(newSongs, recommendations);
       }
 
-      setSongs(sortedSongs);
       await cacheSongs(newSongs);
 
-      console.log(
-        "✅ Firebase 데이터 업데이트 완료:",
-        sortedSongs.length,
-        "개"
-      );
+      console.log("✅ Firebase 데이터 업데이트 완료:", newSongs.length, "개");
     } catch (error: any) {
       console.error("❌ Firebase 업데이트 실패:", error);
       setErrorSafely(
@@ -394,13 +353,6 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
     try {
       console.log("🔄 [useSongs] 수동 새로고침 시작 (songs.json + 기존 recs)");
 
-      cancelPendingRecommendations();
-
-      if (isAuthReady && user?.uid) {
-        console.log("🎯 추천 데이터 강제 새로고침...");
-        await refreshRecommendations(user.uid);
-      }
-
       await updateDataFromFirebase(true);
     } catch (error: any) {
       console.error("❌ 수동 새로고침 실패:", error);
@@ -408,26 +360,25 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
   };
 
   useEffect(() => {
-    // ‼️ [수정] Auth 상태가 준비된(true) 후에만 초기 로드를 시작
     if (isAuthReady) {
       loadInitialData();
     }
   }, [isAuthReady, user]);
 
   return {
-    songs,
+    songs: originalSongs,
     loading,
     error,
     isUpdating,
-    refreshData, // ⬅️ 'songs.json' 동기화용
+    refreshData,
     hasRecommendations,
     isLoadingRecommendations: isLoadingRecommendations || loading,
-    pendingRecommendationUpdate, // ⬅️ '계산 중' 상태 확인용 // 🔧 [수정] 타입 호환을 위한 빈 함수
+    recommendationOrder,
+    pendingRecommendationUpdate,
     applyPendingRecommendations,
     cancelPendingRecommendations,
-    scheduleRecommendationUpdate, // ⬅️ '재계산' 트리거용
+    scheduleRecommendationUpdate,
     _internal: {
-      // 🔧 [수정] 타입 호환을 위한 빈 함수
       setOnRatingChangeCallback: () => {},
       onRatingChanged: () => {},
     },

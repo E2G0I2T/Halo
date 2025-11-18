@@ -24,7 +24,12 @@ export default function PlayerScreen() {
 
   if (!safeVideoId) {
     return (
-      <View style={[styles.container, { paddingTop: 50, justifyContent: 'center', alignItems: 'center' }]}>
+      <View
+        style={[
+          styles.container,
+          { paddingTop: 50, justifyContent: "center", alignItems: "center" },
+        ]}
+      >
         <Text style={styles.text}>잘못된 영상입니다.</Text>
       </View>
     );
@@ -36,24 +41,30 @@ export default function PlayerScreen() {
   const handleStarPress = (starIndex: number) => {
     const newRating = starIndex + 1; // 1-5점
     const currentRating = getRating(safeVideoId);
-    
+
     // 같은 별을 다시 클릭하면 별점 제거 (0점)
     if (currentRating === newRating) {
-      setRating(safeVideoId, 0);
+      setRating(safeVideoId, 0, safeArtist);
     } else {
-      setRating(safeVideoId, newRating);
+      setRating(safeVideoId, newRating, safeArtist);
     }
   };
 
   // 안전한 별점 UI 렌더링
   const renderStars = () => {
     const currentRating = getRating(safeVideoId) || 0; // 안전한 기본값
-    
+
     return (
-      <View style={{ flexDirection: "row", marginTop: 16, justifyContent: "center" }}>
+      <View
+        style={{
+          flexDirection: "row",
+          marginTop: 16,
+          justifyContent: "center",
+        }}
+      >
         {[0, 1, 2, 3, 4].map((starIndex) => {
           const isSelected = starIndex < currentRating;
-          
+
           return (
             <TouchableOpacity
               key={starIndex}
@@ -80,20 +91,30 @@ export default function PlayerScreen() {
         <Text style={[styles.title, { textAlign: "center", marginBottom: 8 }]}>
           {safeTitle}
         </Text>
-        <Text style={[styles.text, { fontSize: 14, opacity: 0.7, textAlign: "center" }]}>
+        <Text
+          style={[
+            styles.text,
+            { fontSize: 14, opacity: 0.7, textAlign: "center" },
+          ]}
+        >
           {safeArtist}
         </Text>
 
         {/* 터치 가능한 별점 시스템 */}
         {renderStars()}
-        
+
         {/* 별점 안내 텍스트 */}
-        <Text style={[styles.text, { 
-          fontSize: 12, 
-          opacity: 0.5, 
-          textAlign: "center", 
-          marginTop: 8 
-        }]}>
+        <Text
+          style={[
+            styles.text,
+            {
+              fontSize: 12,
+              opacity: 0.5,
+              textAlign: "center",
+              marginTop: 8,
+            },
+          ]}
+        >
           별을 터치해서 별점을 매겨보세요
         </Text>
       </View>

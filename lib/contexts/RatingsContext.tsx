@@ -47,7 +47,7 @@ type RatingChangeCallback = (
 
 interface RatingsContextType {
   readonly ratings: Record<string, number>;
-  setRating: (videoId: string, rating: number) => void;
+  setRating: (videoId: string, rating: number, artist?: string) => void;
   getRating: (videoId: string) => number;
   readonly loading: boolean;
   readonly isSyncing: boolean;
@@ -158,10 +158,10 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({
   );
 
   const uploadSingleRatingToCloud = useCallback(
-    async (videoId: string, rating: number): Promise<void> => {
+    async (videoId: string, rating: number, artist: string): Promise<void> => {
       if (!ratingsService) return;
       try {
-        await ratingsService.uploadRating(videoId, rating);
+        await ratingsService.uploadRating(videoId, rating, artist);
         const syncStatus: SyncStatus = { lastSyncTime: Date.now() };
         await AsyncStorage.setItem(
           STORAGE_KEYS.SYNC_STATUS,
@@ -174,10 +174,10 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({
       }
     },
     [ratingsService]
-  ); // [순서 변경] 4. setRating 선언 (delete/upload에 의존)
+  );
 
   const setRating = useCallback(
-    (videoId: string, rating: number): void => {
+    (videoId: string, rating: number, artist?: string): void => {
       if (rating < 0 || rating > 5) return;
       setRatings((prevRatings) => {
         const oldRating = prevRatings[videoId] || 0;
@@ -212,7 +212,11 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({
           if (rating === 0) {
             deleteRatingFromCloud(videoId);
           } else {
-            uploadSingleRatingToCloud(videoId, rating);
+            if (artist) {
+              uploadSingleRatingToCloud(videoId, rating, artist);
+            } else {
+              console.warn(`⚠️ artist 정보가 누락되어 업로드 스킵: ${videoId}`);
+            }
           }
         }
 

@@ -54,20 +54,24 @@ export default function SongList({ songs, showAds = true }: SongListProps) {
   const dataWithAds = insertAds(songs);
 
   // 별점 클릭 핸들러
-  const handleStarPress = (videoId: string, starIndex: number) => {
-    const newRating = starIndex + 1; // 1-5점
+  const handleStarPress = (
+    videoId: string,
+    artist: string,
+    starIndex: number
+  ) => {
+    const newRating = starIndex + 1;
     const currentRating = getRating(videoId);
 
     // 같은 별을 다시 클릭하면 별점 제거 (0점)
     if (currentRating === newRating) {
-      setRating(videoId, 0);
+      setRating(videoId, 0, artist);
     } else {
-      setRating(videoId, newRating);
+      setRating(videoId, newRating, artist);
     }
   };
 
   // 별점 UI 렌더링
-  const renderStars = (videoId: string) => {
+  const renderStars = (videoId: string, artist: string) => {
     const currentRating = getRating(videoId);
 
     return (
@@ -78,8 +82,8 @@ export default function SongList({ songs, showAds = true }: SongListProps) {
           return (
             <TouchableOpacity
               key={starIndex}
-              onPress={() => handleStarPress(videoId, starIndex)}
-              hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }} // 터치 영역 확대
+              onPress={() => handleStarPress(videoId, artist, starIndex)}
+              hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             >
               <Ionicons
                 name={isSelected ? "star" : "star-outline"}
@@ -146,8 +150,7 @@ export default function SongList({ songs, showAds = true }: SongListProps) {
                   {song.artist}
                 </Text>
 
-                {/* 터치 가능한 별점 시스템 */}
-                {renderStars(song.videoId)}
+                {renderStars(song.videoId, song.artist)}
               </View>
 
               <View

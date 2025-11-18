@@ -1,8 +1,6 @@
-/* eslint-env node */
 // functions/index.js
 const functions = require("firebase-functions");
-const { onRequest } = require("firebase-functions/v2/https");
-const { onCall } = require("firebase-functions/v2/https");
+const { onRequest, onCall } = require("firebase-functions/v2/https");
 
 const moment = require("moment");
 const _ = require("lodash");
@@ -225,7 +223,13 @@ exports.generatePersonalizedRecommendations = onCall(async (request) => {
 
     // 📊 결과 분석
     const userRatingCount = ratingsData.length;
-    const validRatings = ratingsData.filter((r) => r.rating > 0 && !r.deleted);
+    const validRatings = ratingsData
+      .filter((r) => r.rating > 0 && !r.deleted)
+      .map((r) => ({
+        videoId: r.videoId || r.id,
+        rating: r.rating,
+        artist: r.artist || null, // ⬅️ artist 필드 추출 (없으면 null)
+      }));
     const validRatingCount = validRatings.length;
 
     functions.logger.info(`📊 분석 결과:`);
@@ -313,10 +317,9 @@ exports.generatePersonalizedRecommendations = onCall(async (request) => {
  */
 async function generatePersonalizedLogic(userId, validRatings) {
   const db = getDb();
-
   functions.logger.info(
-    "🎵 개인화 추천 알고리즘 실행 (하이브리드 스코어링)..."
-  ); // 1. 글로벌 통계 가져오기
+    "🎵 개인화 추천 알고리즘 실행 (하이브리드 3:7 + 3단계 로직)"
+  );
 
   let globalStats = null;
   try {
@@ -324,95 +327,96 @@ async function generatePersonalizedLogic(userId, validRatings) {
       .collection("system")
       .doc("globalStats")
       .get();
-    if (globalStatsDoc.exists) {
-      globalStats = globalStatsDoc.data();
-      // popularSongs에 artist 정보가 없으므로 하이브리드 점수 계산 시 개인 가수 선호도 대신 개인 평균 점수 사용
+    if (!globalStatsDoc.exists || !globalStatsDoc.data().popularSongs) {
+      functions.logger.error(
+        "❌ 치명적 오류: 글로벌 통계(system/globalStats)를 찾을 수 없거나 popularSongs가 없습니다."
+      );
+      return { isDefault: true, message: "글로벌 통계 부재" };
     }
+    globalStats = globalStatsDoc.data();
   } catch (error) {
     functions.logger.warn("⚠️ 글로벌 통계 로드 실패:", error.message);
+    return { isDefault: true, message: "글로벌 통계 로드 실패" };
   }
 
-  // 2. 개인 사용자 평균 별점 계산 (Personal Score 용도)
-  let artistTotalRatings = 0;
-  let artistCount = 0;
+  const userSongRatings = {};
+  const artistRatings = {};
+  let totalUserRating = 0;
 
   validRatings.forEach((rating) => {
-    // 유효한 별점의 총점과 횟수를 계산
-    artistTotalRatings += rating.rating;
-    artistCount += 1;
+    userSongRatings[rating.videoId] = rating.rating;
+    totalUserRating += rating.rating;
+    if (rating.artist) {
+      if (!artistRatings[rating.artist]) {
+        artistRatings[rating.artist] = { total: 0, count: 0 };
+      }
+      artistRatings[rating.artist].total += rating.rating;
+      artistRatings[rating.artist].count += 1;
+    }
   });
 
-  // 🔑 개인 사용자의 전체 평균 평점 (Personal Mean Score)
-  // 평가 횟수가 없으면 중립값 3.0점 부여
   const personalAverageRating =
-    artistCount > 0 ? artistTotalRatings / artistCount : 3.0;
-
+    validRatings.length > 0 ? totalUserRating / validRatings.length : 3.0;
+  const personalArtistAvg = {};
+  for (const artist in artistRatings) {
+    personalArtistAvg[artist] =
+      artistRatings[artist].total / artistRatings[artist].count;
+  }
   functions.logger.info(
-    `🎵 개인 사용자 평균 별점: ${personalAverageRating.toFixed(
-      2
-    )} (${artistCount}회 평가 기반)`
+    `🎵 개인 점수 분석 완료 (1순위: ${
+      Object.keys(userSongRatings).length
+    }곡, 2순위: ${
+      Object.keys(personalArtistAvg).length
+    }명, 3순위: ${personalAverageRating.toFixed(2)}점)`
   );
 
-  // 3. 최종 하이브리드 점수 계산 및 랭킹
   const recommendations = [];
-  const W_global = 0.6;
-  const W_personal = 0.4;
+  const isV3LogicReady =
+    globalStats.popularSongs.length > 0 && globalStats.popularSongs[0].artist;
 
-  if (
-    globalStats &&
-    globalStats.popularSongs &&
-    globalStats.popularSongs.length > 0
-  ) {
+  if (isV3LogicReady) {
+    functions.logger.info("✅ v3 로직 실행 (3:7 Artist-based)");
+    const W_global = 0.3;
+    const W_personal = 0.7;
+
     globalStats.popularSongs.forEach((song) => {
-      // A. Global Score: 베이지안 평균 점수 (GlobalStats 계산 시 적용됨)
+      const artist = song.artist;
       const globalScore = song.bayesianAverage;
-
-      // B. Personal Score: 개인 사용자의 전체 평균 평점 사용
-      const personalScore = personalAverageRating;
-
-      // C. Final Hybrid Score 계산
+      let personalScore = personalAverageRating; // 3순위
+      if (personalArtistAvg[artist]) {
+        personalScore = personalArtistAvg[artist]; // 2순위
+      }
+      if (userSongRatings[song.videoId]) {
+        personalScore = userSongRatings[song.videoId]; // 1순위
+      }
       const finalScore = W_global * globalScore + W_personal * personalScore;
-
-      recommendations.push({
-        videoId: song.videoId,
-        score: finalScore,
-        globalScore: globalScore,
-        personalScore: personalScore,
-      });
+      recommendations.push({ videoId: song.videoId, score: finalScore });
     });
   } else {
-    // 글로벌 통계가 없는 경우: 기본 추천 반환
     functions.logger.warn(
-      "⚠️ 글로벌 통계 없음. 하이브리드 스코어링 불가. 기본 추천 목록 반환."
+      "⚠️ globalStats에 artist 누락. v2 로직(6:4)으로 Fallback합니다."
     );
-
-    // 기존의 generatePersonalizedRecommendations 호출 로직을 위해 isDefault 상태를 반환
-    return {
-      isDefault: true,
-      userRatingCount: artistCount,
-      validRatingCount: artistCount,
-      message: "글로벌 통계 부재로 기본 추천 제공",
-      recommendations: (await generateDefaultRecommendations(userId)).slice(
-        0,
-        20
-      ), // 기본 목록 제공
-      debug: { timestamp: new Date().toISOString() },
-    };
+    const W_global = 0.6;
+    const W_personal = 0.4;
+    globalStats.popularSongs.forEach((song) => {
+      const globalScore = song.bayesianAverage;
+      const personalScore = personalAverageRating;
+      const finalScore = W_global * globalScore + W_personal * personalScore;
+      recommendations.push({ videoId: song.videoId, score: finalScore });
+    });
   }
 
-  // 4. 점수 순으로 정렬
   recommendations.sort((a, b) => b.score - a.score);
-
   const personalizedOrder = recommendations.map((r) => r.videoId);
 
-  // 5. 개인화 추천 데이터 저장
   const userRecommendations = {
     userId,
     songs: personalizedOrder,
     generatedAt: moment().format("YYYY-MM-DD HH:mm:ss"),
-    userRatingCount: artistCount,
+    userRatingCount: validRatings.length,
     personalizedOrder: true,
-    algorithm: "hybrid_v2", // 알고리즘 명시
+    algorithm: isV3LogicReady ? "hybrid_v3_p70_artist" : "hybrid_v2_fallback",
+    scores: recommendations.slice(0, 30),
   };
 
   await db
@@ -426,20 +430,7 @@ async function generatePersonalizedLogic(userId, validRatings) {
     `✅ 개인화 추천 저장 완료: ${personalizedOrder.length}곡`
   );
 
-  return {
-    isDefault: false,
-    userRatingCount: artistCount,
-    validRatingCount: artistCount,
-    message: `${artistCount}개 평가 기반 하이브리드 추천 제공`,
-    recommendations: {
-      personalizedOrder: personalizedOrder,
-      scores: recommendations.map((r) => ({ id: r.videoId, score: r.score })),
-    },
-    debug: {
-      confidence: artistCount >= 5 ? "high" : "low",
-      generatedAt: new Date().toISOString(),
-    },
-  };
+  return userRecommendations;
 }
 
 exports.healthCheck = onRequest({ invoker: "public" }, (request, response) => {
@@ -514,19 +505,22 @@ exports.testFirestore = onCall(async (request) => {
   }
 });
 
-exports.calculateGlobalStats = onCall(
+exports.calculateGlobalStats = onRequest(
   {
     timeoutSeconds: 540,
     memory: "1GiB",
     region: "us-central1",
+    invoker: "public",
   },
-  async (request) => {
+  async (request, response) => {
     try {
       const db = getDb();
-      functions.logger.info("🔄 글로벌 통계 계산 시작 (onCall v2 버전)");
+      functions.logger.info(
+        "🔄 글로벌 통계 계산 시작 (onCall v2 / artist 포함)"
+      );
       const startTime = Date.now();
 
-      const data = request.data;
+      const data = request.body.data;
       const knownUserId = data && data.debugUserId ? data.debugUserId : null;
       if (knownUserId) {
         functions.logger.info(
@@ -543,55 +537,30 @@ exports.calculateGlobalStats = onCall(
         const foundUserIds = new Set();
 
         ratingsQuery.forEach((doc) => {
-          const pathParts = doc.ref.path.split("/"); // 'users/{userId}/ratings/{ratingId}' 경로를 가정
+          const pathParts = doc.ref.path.split("/");
           if (pathParts.length >= 2 && pathParts[0] === "users") {
             foundUserIds.add(pathParts[1]);
           }
         });
-
         userIds = Array.from(foundUserIds);
-        functions.logger.info(
-          `✅ ratings에서 발견된 사용자: ${userIds.length}명`,
-          userIds
-        );
       } catch (groupError) {
         functions.logger.error("❌ 컬렉션 그룹 쿼리 실패:", groupError);
-        throw new functions.https.HttpsError(
-          "internal",
-          "컬렉션 그룹 쿼리 실패: " + groupError.message,
-          {
-            stats: {
-              totalUsers: 0,
-              totalRatings: 0,
-              totalSongs: 0,
-              popularSongs: [],
-              lastUpdated: moment().format("YYYY-MM-DD HH:mm:ss"), 
-              processingTime: Date.now() - startTime,
-              error: groupError.message,
-            },
-          }
-        );
-      } // 🔧 4단계: 실제 사용자 수 업데이트
+        response.status(500).send({
+          success: false,
+          message: "컬렉션 그룹 쿼리 실패: " + groupError.message,
+        });
+        return;
+      }
 
       const actualTotalUsers = userIds.length;
-      functions.logger.info(`👥 실제 처리할 사용자 수: ${actualTotalUsers}명`);
-
       if (actualTotalUsers === 0) {
-        functions.logger.error("❌ 처리할 사용자가 없습니다!"); 
-        return {
+        functions.logger.error("❌ 처리할 사용자가 없습니다!");
+        response.status(400).send({
           success: false,
           message: "처리할 사용자 데이터 없음",
-          stats: {
-            totalUsers: 0,
-            totalRatings: 0,
-            totalSongs: 0,
-            popularSongs: [],
-            lastUpdated: moment().format("YYYY-MM-DD HH:mm:ss"),
-            processingTime: Date.now() - startTime,
-            error: "사용자 없음",
-          },
-        };
-      } // 🔧 5단계: 각 사용자별 별점 데이터 분석
+        });
+        return; // ⬅️ [수정] 함수 종료
+      }
 
       let totalRatings = 0;
       const songStats = {};
@@ -601,105 +570,43 @@ exports.calculateGlobalStats = onCall(
       for (const userId of userIds) {
         try {
           processedUsers++;
-          functions.logger.info(
-            `👤 [${processedUsers}/${actualTotalUsers}] 사용자 처리: ${userId}`
-          ); // 별점 컬렉션 조회
-
           const ratingsSnapshot = await db
             .collection("users")
             .doc(userId)
             .collection("ratings")
             .get();
-
-          functions.logger.info(
-            `📊 ${userId} 별점 문서: ${ratingsSnapshot.size}개`
-          );
-
-          if (ratingsSnapshot.size === 0) {
-            functions.logger.info(`📭 ${userId} 별점 없음`);
-            continue;
-          }
-
+          if (ratingsSnapshot.size === 0) continue;
           let userValidRatings = 0;
-          let userTotalDocs = 0;
-
           ratingsSnapshot.forEach((ratingDoc) => {
-            userTotalDocs++;
-            const rating = ratingDoc.data(); // 🔧 상세 로깅
-
-            functions.logger.info(`⭐ [${userTotalDocs}] 별점 분석:`, {
-              docId: ratingDoc.id,
-              videoId: rating.videoId,
-              rating: rating.rating,
-              ratingType: typeof rating.rating,
-              deleted: rating.deleted,
-              hasVideoId: !!rating.videoId,
-              hasRating: !!rating.rating,
-              ratingGreaterThanZero: rating.rating > 0,
-              notDeleted: !rating.deleted,
-            }); 
-
+            const rating = ratingDoc.data();
             const isValidRating =
               rating.rating &&
               typeof rating.rating === "number" &&
               rating.rating > 0 &&
               rating.videoId &&
+              rating.artist && // ⬅️ artist 확인
               !rating.deleted;
 
             if (isValidRating) {
               totalRatings++;
               userValidRatings++;
-
-              functions.logger.info(
-                `✅ 유효한 별점 추가: ${rating.videoId} = ${rating.rating}점 (총 ${totalRatings}개)`
-              );
-
               if (!songStats[rating.videoId]) {
                 songStats[rating.videoId] = {
                   totalScore: 0,
                   ratingCount: 0,
                   videoId: rating.videoId,
+                  artist: rating.artist, // ⬅️ artist 저장
                 };
-                functions.logger.info(`🎵 새 곡 등록: ${rating.videoId}`);
               }
-
               songStats[rating.videoId].totalScore += rating.rating;
               songStats[rating.videoId].ratingCount += 1;
-
-              functions.logger.info(
-                `📈 ${rating.videoId} 업데이트: 총점 ${
-                  songStats[rating.videoId].totalScore
-                }, 개수 ${songStats[rating.videoId].ratingCount}`
-              );
-            } else {
-              const reasons = [];
-              if (!rating.rating) reasons.push("별점 없음");
-              if (typeof rating.rating !== "number")
-                reasons.push(`타입 오류(${typeof rating.rating})`);
-              if (!(rating.rating > 0))
-                reasons.push(`0 이하(${rating.rating})`);
-              if (!rating.videoId) reasons.push("videoId 없음");
-              if (rating.deleted) reasons.push("삭제됨");
-
-              functions.logger.warn(
-                `❌ 별점 제외: ${rating.videoId || "ID없음"} - ${reasons.join(
-                  ", "
-                )}`
-              );
             }
           });
-
-          if (userValidRatings > 0) {
-            usersWithRatings++;
-          }
-
-          functions.logger.info(
-            `📊 ${userId} 요약: 전체 ${userTotalDocs}개, 유효 ${userValidRatings}개`
-          );
+          if (userValidRatings > 0) usersWithRatings++;
         } catch (userError) {
           functions.logger.error(`❌ 사용자 ${userId} 처리 실패:`, userError);
         }
-      } // 🔧 6단계: 최종 통계 분석
+      }
 
       const finalStats = {
         actualTotalUsers: actualTotalUsers,
@@ -742,37 +649,28 @@ exports.calculateGlobalStats = onCall(
           }
         }
 
-        return {
+        response.status(500).send({
           success: false,
           message: "별점 데이터 처리 실패",
-          stats: {
-            totalUsers: actualTotalUsers,
-            totalRatings: 0,
-            totalSongs: 0,
-            popularSongs: [],
-            lastUpdated: moment().format("YYYY-MM-DD HH:mm:ss"),
-            processingTime: Date.now() - startTime,
-            debug: finalStats,
-            error: "모든 별점이 필터링됨",
-          },
-        };
-      } // 🔧 8단계: 베이지안 평균 계산
+        });
+        return; // ⬅️ [수정] 함수 종료
+      }
 
       functions.logger.info("🧮 베이지안 평균 계산...");
 
-      const PRIOR_MEAN = 3.0; // 사전 평균 (중간값)
+      const PRIOR_MEAN = 3.0;
       const PRIOR_COUNT = 5;
 
       const popularSongs = Object.values(songStats)
         .map((song) => {
           const avg = song.totalScore / song.ratingCount;
-
           const bayesianAvg =
             (song.totalScore + PRIOR_MEAN * PRIOR_COUNT) /
             (song.ratingCount + PRIOR_COUNT);
 
           return {
             videoId: song.videoId,
+            artist: song.artist,
             averageRating: avg,
             bayesianAverage: bayesianAvg,
             ratingCount: song.ratingCount,
@@ -813,18 +711,17 @@ exports.calculateGlobalStats = onCall(
           .map((s) => `${s.videoId}(${s.ratingCount})`),
       });
 
-      return {
+      response.json({
         success: true,
         message: "글로벌 통계 계산 완료",
         stats: globalStats,
-      };
+      });
     } catch (error) {
       functions.logger.error("❌ 글로벌 통계 계산 실패:", error);
-      throw new functions.https.HttpsError(
-        "internal",
-        `통계 계산 실패: ${error.message}`,
-        { stack: error.stack } // 디버깅을 위해 스택 정보 추가
-      );
+      response.status(500).send({
+        success: false,
+        message: `통계 계산 실패: ${error.message}`,
+      });
     }
   }
 );
@@ -1253,7 +1150,6 @@ async function generateDefaultRecommendations(userId) {
     return ["oZpYEEcvu5I", "mX9IJ7Urn28", "goCvO7uJhu8"];
   }
 }
-
 
 exports.testEcho = onCall(async (request) => {
   const data = request.data;

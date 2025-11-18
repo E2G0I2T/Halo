@@ -10,6 +10,8 @@ import { useAuth } from "@/lib/contexts/AuthContext";
 import { RefreshProvider, useRefresh } from "@/lib/contexts/RefreshContext";
 import LoadingScreen from "@/components/LoadingScreen";
 import { Ionicons } from "@expo/vector-icons";
+import { sortSongsByRecommendations } from "@/lib/services/recommendationService";
+import { Song } from "@/lib/types/song";
 
 // 필터 타입 정의
 type RatingFilter = "all" | "rated" | "unrated";
@@ -306,11 +308,12 @@ export default function IndexScreen() {
 
   const songData = useSongs(authStateForUseSongs);
   const {
-    songs, // ...
+    songs,
     loading: songsLoading,
     error,
     isUpdating,
     refreshData: refreshSongs,
+    recommendationOrder,
     pendingRecommendationUpdate,
     scheduleRecommendationUpdate,
     _internal,
@@ -344,35 +347,59 @@ export default function IndexScreen() {
 
   const finalSongList = useMemo(() => {
     const safeSongs = Array.isArray(songs) ? songs : [];
+    if (safeSongs.length === 0) return [];
 
-    console.log("✅ 별점 기반 2차 정렬 적용 (Rated songs first)");
-    return [...safeSongs].sort((a, b) => {
+    console.log("✅ [최종] 3단계 정렬 적용 (별점 > 추천 > 랜덤)");
+
+    const ratedSongs: Song[] = [];
+    const otherSongs: Song[] = [];
+
+    safeSongs.forEach((song) => {
+      if (!song || !song.videoId) return;
+      if (getRating(song.videoId) > 0) {
+        ratedSongs.push(song);
+      } else {
+        otherSongs.push(song);
+      }
+    });
+
+    console.log(`  L T1 (별점) ${ratedSongs.length}곡 안정화 정렬...`);
+    ratedSongs.sort((a, b) => {
       const ratingA = getRating(a.videoId);
       const ratingB = getRating(b.videoId);
-
-      if (ratingA > 0 && ratingB > 0) {
+      if (ratingA !== ratingB) {
         return ratingB - ratingA;
       }
-      if (ratingA > 0 && ratingB === 0) {
-        return -1;
-      }
-      if (ratingA === 0 && ratingB > 0) {
-        return 1;
-      }
-      return 0;
+      const titleA = a.title || "";
+      const titleB = b.title || "";
+      return titleA.localeCompare(titleB);
     });
-  }, [songs, getRating]);
 
-  const filteredData = finalSongList.filter((song) => {
-    if (!song || typeof song !== "object") return false;
-    const safeTitle = song.title || "";
-    const safeArtist = song.artist || "";
-    const lower = searchText.toLowerCase();
-    return (
-      safeTitle.toLowerCase().includes(lower) ||
-      safeArtist.toLowerCase().includes(lower)
+    console.log(`  L T2/T3 (나머지) ${otherSongs.length}곡 추천/랜덤 분리...`);
+    const sortedOtherSongs = sortSongsByRecommendations(
+      otherSongs,
+      recommendationOrder
     );
-  });
+    return [...ratedSongs, ...sortedOtherSongs];
+  }, [songs, getRating, recommendationOrder]);
+
+  const filteredData = useMemo(() => {
+    const safeSongs = Array.isArray(finalSongList) ? finalSongList : [];
+    if (searchText === "") {
+      return safeSongs;
+    }
+
+    const lower = searchText.toLowerCase();
+    return safeSongs.filter((song) => {
+      if (!song || typeof song !== "object") return false;
+      const safeTitle = song.title || "";
+      const safeArtist = song.artist || "";
+      return (
+        safeTitle.toLowerCase().includes(lower) ||
+        safeArtist.toLowerCase().includes(lower)
+      );
+    });
+  }, [finalSongList, searchText]);
 
   if (authLoading || songsLoading) {
     return <LoadingScreen message="음악 데이터를 불러오는 중..." />;
