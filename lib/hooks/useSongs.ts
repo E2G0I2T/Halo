@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Song } from "@/lib/types/song";
-import { getFunctions, httpsCallable } from "firebase/functions"; // ✅ 'firebase/functions'에서 올바르게 임포트됩니다.
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { User } from "firebase/auth";
 import {
   fetchSongsFromFirebase,
@@ -12,11 +12,54 @@ import {
   markTodayAsChecked,
 } from "@/lib/services/firebaseService";
 
-import {
-  getUserRecommendations,
-  refreshRecommendations,
-  sortSongsByRecommendations,
-} from "@/lib/services/recommendationService";
+import { getUserRecommendations } from "@/lib/services/recommendationService";
+
+const sortSongsByRecommendations = (
+  songs: Song[],
+  recommendationOrder: string[]
+): Song[] => {
+  if (!Array.isArray(songs) || songs.length === 0) return [];
+  
+  // 추천 목록이 없으면 전체 랜덤 셔플 (T3만 존재)
+  if (!Array.isArray(recommendationOrder) || recommendationOrder.length === 0) {
+    const shuffled = [...songs];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
+
+  console.log("🔀 [useSongs] T2(추천) + T3(랜덤) 정렬 시작...");
+
+  const priorityMap = new Map<string, number>();
+  recommendationOrder.forEach((videoId, index) => {
+    priorityMap.set(videoId, index);
+  });
+
+  const recommendedSongs: (Song & { priority: number })[] = [];
+  const otherSongs: Song[] = [];
+
+  songs.forEach((song) => {
+    const priority = priorityMap.get(song.videoId);
+    if (priority !== undefined) {
+      recommendedSongs.push({ ...song, priority });
+    } else {
+      otherSongs.push(song);
+    }
+  });
+
+  // T2: 추천 순서대로 정렬 (고정)
+  recommendedSongs.sort((a, b) => a.priority - b.priority);
+
+  // T3: 나머지 곡 랜덤 셔플
+  for (let i = otherSongs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [otherSongs[i], otherSongs[j]] = [otherSongs[j], otherSongs[i]];
+  }
+  
+  return [...recommendedSongs, ...otherSongs];
+};
 
 // 추천 업데이트 상태 타입
 interface PendingRecommendationUpdate {
@@ -92,6 +135,10 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
   const isFirebaseReady = authState?.isFirebaseReady || false;
   const isAuthReady = authState?.isAuthReady || false;
   const authLoading = authState?.loading || false;
+
+  const sortedSongs = useMemo(() => {
+    return sortSongsByRecommendations(originalSongs, recommendationOrder);
+  }, [originalSongs, recommendationOrder]);
 
   const setErrorSafely = (errorMessage: string | null) => {
     if (typeof errorMessage === "string" && errorMessage.trim() !== "") {
@@ -174,7 +221,7 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
 
         setRecommendationOrder(finalRecommendations);
         setHasRecommendations(true);
-        console.log("✅ 새로운 추천 순서 자동 적용 완료");
+        console.log("✅ 새로운 추천 순서 적용 완료");
       } else {
         console.log("😞 모든 시도 실패, 추천 업데이트 취소");
       }
@@ -197,7 +244,7 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
         timeoutId: undefined,
       });
     }
-  }, [user?.uid, originalSongs]);
+  }, [user?.uid]);
 
   const onRatingChanged = useCallback(
     (videoId: string, newRating: number, oldRating: number) => {
@@ -276,6 +323,7 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
       } else {
         initialSongs = fallbackSongs;
       }
+
       setOriginalSongs(initialSongs);
 
       // 2. Auth 상태에 따라 추천 목록 로드 (로그인 상태 확인)
@@ -300,7 +348,6 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
     } catch (error: any) {
       console.error("❌ 초기 데이터 로드 실패:", error);
       if (originalSongs.length === 0) {
-        // ⬅️ state 'songs'
         setOriginalSongs(fallbackSongs);
         console.log("🔄 에러 발생, Fallback 데이터 사용");
       }
@@ -308,7 +355,6 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
         `데이터 로드 실패: ${error?.message || "알 수 없는 오류"}`
       );
     } finally {
-      // ‼️ [수정] 모든 작업이 끝난 후 로딩 해제
       setLoading(false);
       console.log("✅ 초기 로드 절차 완료. UI 렌더링.");
     }
@@ -325,7 +371,6 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
       if (!Array.isArray(newSongs) || newSongs.length === 0) {
         throw new Error("Firebase에서 유효한 데이터를 받지 못했습니다");
       }
-
       setOriginalSongs(newSongs);
 
       let sortedSongs = newSongs;
@@ -366,7 +411,7 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
   }, [isAuthReady, user]);
 
   return {
-    songs: originalSongs,
+    songs: sortedSongs,
     loading,
     error,
     isUpdating,
@@ -375,9 +420,12 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
     isLoadingRecommendations: isLoadingRecommendations || loading,
     recommendationOrder,
     pendingRecommendationUpdate,
-    applyPendingRecommendations,
-    cancelPendingRecommendations,
-    scheduleRecommendationUpdate,
+    applyPendingRecommendations: async () => {},
+    cancelPendingRecommendations: () => {},
+    scheduleRecommendationUpdate: useCallback(
+      (d = 0) => updateRecommendationsInBackground(),
+      [updateRecommendationsInBackground]
+    ),
     _internal: {
       setOnRatingChangeCallback: () => {},
       onRatingChanged: () => {},

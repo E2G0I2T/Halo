@@ -10,7 +10,6 @@ import { useAuth } from "@/lib/contexts/AuthContext";
 import { RefreshProvider, useRefresh } from "@/lib/contexts/RefreshContext";
 import LoadingScreen from "@/components/LoadingScreen";
 import { Ionicons } from "@expo/vector-icons";
-import { sortSongsByRecommendations } from "@/lib/services/recommendationService";
 import { Song } from "@/lib/types/song";
 
 // 필터 타입 정의
@@ -52,7 +51,7 @@ function IndexContent({
       pendingRecommendationUpdate.isCalculating;
 
     if (isRefreshing) return "새로고침 중...";
-    if (isRecalculating) return "추천 목록을 계산 중입니다..."; // ➕ 계산 중 메시지
+    if (isRecalculating) return "추천 목록을 계산 중입니다...";
     if (isUpdating) return "새로운 곡을 불러오는 중...";
     return "";
   };
@@ -167,14 +166,12 @@ function IndexContent({
 
   const handleRefreshPress = () => {
     if (isButtonBusy) {
-      // 이미 작업 중일 때
       if (isRecalculating) {
         Alert.alert(
           "계산 중",
           "별점 데이터를 계산 중입니다. 계산이 종료된 후 다시 눌러주세요"
         );
       } else if (isRefreshing) {
-        // 쿨다운 알림
         const safeRemainingTime =
           typeof remainingCooldown === "number" ? remainingCooldown : 0;
         Alert.alert(
@@ -187,7 +184,6 @@ function IndexContent({
       return;
     }
 
-    // 🔧 [수정] 쿨다운 상태만 따로 체크
     if (isCooldownActive) {
       const safeRemainingTime =
         typeof remainingCooldown === "number" ? remainingCooldown : 0;
@@ -196,7 +192,7 @@ function IndexContent({
         `새로고침을 1분에 1번 가능합니다 (${safeRemainingTime}초 남음)`
       );
       return;
-    } // 모든 조건 통과: 새로고침 실행
+    }
 
     if (refreshData) {
       console.log("🔘 새로고침 버튼 클릭 -> refreshData() 호출");
@@ -206,11 +202,7 @@ function IndexContent({
 
   return (
     <View style={[styles.container, { paddingTop: 50 }]}>
-      <View
-        style={{
-          flex: 1,
-        }}
-      >
+      <View style={{ flex: 1 }}>
         {refreshMessage && refreshMessage.length > 0 && (
           <View
             style={{
@@ -308,65 +300,96 @@ export default function IndexScreen() {
 
   const songData = useSongs(authStateForUseSongs);
   const {
-    songs,
+    songs, // ⬅️ useSongs가 이미 [T2(추천) + T3(셔플)] 정렬을 완료해서 보낸 목록
     loading: songsLoading,
     error,
     isUpdating,
     refreshData: refreshSongs,
-    recommendationOrder,
     pendingRecommendationUpdate,
     scheduleRecommendationUpdate,
     _internal,
   } = songData;
 
+  const [isRefreshingUI, setIsRefreshingUI] = useState(false);
+  const [bufferedSongs, setBufferedSongs] = useState<Song[]>([]);
+  useEffect(() => {
+    if (!isRefreshingUI) {
+      setBufferedSongs(songs);
+    }
+  }, [songs, isRefreshingUI]);
+
   const {
     forceSyncFromCloud: refreshRatings,
     setOnRatingChangeCallback,
     getRating,
+    ratings,
   } = useRatings();
+
+  const [frozenRatings, setFrozenRatings] = useState<Record<string, number>>(
+    {}
+  );
 
   useEffect(() => {
     if (_internal?.onRatingChanged && setOnRatingChangeCallback) {
     }
   }, [Boolean(_internal?.onRatingChanged), Boolean(setOnRatingChangeCallback)]);
 
+  useEffect(() => {
+    // 초기 로딩 시, ratings가 로드되면 스냅샷 저장
+    if (songs.length > 0 && Object.keys(ratings).length > 0 && Object.keys(frozenRatings).length === 0) {
+      console.log("🧊 초기 별점 스냅샷 저장");
+      setFrozenRatings(ratings);
+    }
+  }, [songs, ratings]);
+
   const refreshAll = async (): Promise<void> => {
     try {
       console.log("🔄 [RefreshButton] 통합 새로고침 시작...");
+
+      setIsRefreshingUI(true);
+
       console.log("🧮 1단계: 개인화 추천 재계산 요청 (즉시)");
       scheduleRecommendationUpdate(0);
 
       console.log("📥 2단계: songs.json 및 ratings 동기화");
       await Promise.all([refreshSongs(), refreshRatings()]);
+      
+      console.log("🧊 최종 별점 스냅샷 갱신");
+      setFrozenRatings(ratings); 
+
       console.log("✅ 2단계 완료 (songs.json, ratings)");
     } catch (error: any) {
       console.error("새로고침 실패:", error);
-      throw error;
+    } finally {
+      setIsRefreshingUI(false);
     }
   };
 
   const finalSongList = useMemo(() => {
-    const safeSongs = Array.isArray(songs) ? songs : [];
+    const safeSongs = Array.isArray(bufferedSongs) ? bufferedSongs : [];
     if (safeSongs.length === 0) return [];
 
-    console.log("✅ [최종] 3단계 정렬 적용 (별점 > 추천 > 랜덤)");
+    const currentRatings = Object.keys(frozenRatings).length > 0 ? frozenRatings : ratings;
+    const getSnapshotRating = (id: string) => currentRatings[id] || 0;
+
+    console.log("✅ [최종] 3단계 정렬 적용 (T1 분리 -> 나머지 순서 유지)");
 
     const ratedSongs: Song[] = [];
     const otherSongs: Song[] = [];
 
     safeSongs.forEach((song) => {
       if (!song || !song.videoId) return;
-      if (getRating(song.videoId) > 0) {
+      if (getSnapshotRating(song.videoId) > 0) {
         ratedSongs.push(song);
       } else {
         otherSongs.push(song);
       }
     });
 
-    console.log(`  L T1 (별점) ${ratedSongs.length}곡 안정화 정렬...`);
+    // 1. T1(별점) 안정적 정렬
     ratedSongs.sort((a, b) => {
-      const ratingA = getRating(a.videoId);
-      const ratingB = getRating(b.videoId);
+      const ratingA = getSnapshotRating(a.videoId);
+      const ratingB = getSnapshotRating(b.videoId);
       if (ratingA !== ratingB) {
         return ratingB - ratingA;
       }
@@ -374,14 +397,10 @@ export default function IndexScreen() {
       const titleB = b.title || "";
       return titleA.localeCompare(titleB);
     });
+    
+    return [...ratedSongs, ...otherSongs];
 
-    console.log(`  L T2/T3 (나머지) ${otherSongs.length}곡 추천/랜덤 분리...`);
-    const sortedOtherSongs = sortSongsByRecommendations(
-      otherSongs,
-      recommendationOrder
-    );
-    return [...ratedSongs, ...sortedOtherSongs];
-  }, [songs, getRating, recommendationOrder]);
+  }, [bufferedSongs, frozenRatings, ratings]); // recommendationOrder 의존성 제거
 
   const filteredData = useMemo(() => {
     const safeSongs = Array.isArray(finalSongList) ? finalSongList : [];
