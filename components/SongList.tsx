@@ -1,12 +1,10 @@
-// components/SongList.tsx
-
-import React from "react";
-import { View, Text, FlatList, TouchableOpacity, Image } from "react-native";
+import React, { useCallback, memo } from "react";
+import { View, Text, FlatList, TouchableOpacity } from "react-native";
+import { Image } from "expo-image"; 
 import { useAppStyles } from "@/theme/styles";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Song } from "@/lib/types/song";
-// import MyBannerAd from "./MyBannerAd";
 import { useFavorites } from "@/lib/contexts/FavoritesContext";
 import { useRatings } from "@/lib/contexts/RatingsContext";
 
@@ -26,8 +24,99 @@ type ListItem = SongItem | AdItem;
 type SongListProps = {
   songs: Song[];
   showAds?: boolean;
-  enableRefresh?: boolean; // Pull-to-refresh 활성화 여부
+  enableRefresh?: boolean;
 };
+
+const SongListItem = memo(
+  ({
+    song,
+    isFav,
+    rating,
+    onToggleFavorite,
+    onRate,
+    onPress,
+  }: {
+    song: Song;
+    isFav: boolean;
+    rating: number;
+    onToggleFavorite: (id: string) => void;
+    onRate: (id: string, artist: string, star: number) => void;
+    onPress: (song: Song) => void;
+  }) => {
+    const styles = useAppStyles();
+
+    return (
+      <View style={[styles.borderBottom, { paddingVertical: 16 }]}>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          
+          <Image
+            source={song.thumbnail}
+            style={{ width: 60, height: 60, borderRadius: 6, marginRight: 12 }}
+            contentFit="cover"
+            transition={200}
+            cachePolicy="memory-disk"
+          />
+
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.text, { marginBottom: 4 }]}>{song.title}</Text>
+            <Text style={[styles.text, { fontSize: 14, opacity: 0.7 }]}>
+              {song.artist}
+            </Text>
+
+            {/* 별점 UI */}
+            <View style={{ flexDirection: "row", marginTop: 4 }}>
+              {[0, 1, 2, 3, 4].map((starIndex) => {
+                const isSelected = starIndex < rating;
+                return (
+                  <TouchableOpacity
+                    key={starIndex}
+                    onPress={() => onRate(song.videoId, song.artist, starIndex)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons
+                      name={isSelected ? "star" : "star-outline"}
+                      size={18}
+                      color={isSelected ? "#FFD700" : "#aaa"}
+                      style={{ marginRight: 2 }}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View
+            style={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              height: 72,
+              paddingVertical: 4,
+            }}
+          >
+            <TouchableOpacity onPress={() => onToggleFavorite(song.videoId)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons
+                name={isFav ? "heart" : "heart-outline"}
+                size={24}
+                color={isFav ? "#ff4f4f" : "#aaa"}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => onPress(song)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="chevron-forward" size={24} color="#999" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  },
+  (prev, next) => {
+    return (
+      prev.isFav === next.isFav &&
+      prev.rating === next.rating &&
+      prev.song.videoId === next.song.videoId
+    );
+  }
+);
 
 export default function SongList({ songs, showAds = true }: SongListProps) {
   const styles = useAppStyles();
@@ -35,7 +124,6 @@ export default function SongList({ songs, showAds = true }: SongListProps) {
   const { toggleFavorite, isFavorite } = useFavorites();
   const { setRating, getRating } = useRatings();
 
-  // 광고 삽입
   const insertAds = (items: Song[], interval = 5): ListItem[] => {
     const merged: ListItem[] = [];
     for (let i = 0; i < items.length; i++) {
@@ -53,52 +141,62 @@ export default function SongList({ songs, showAds = true }: SongListProps) {
 
   const dataWithAds = insertAds(songs);
 
-  // 별점 클릭 핸들러
-  const handleStarPress = (
-    videoId: string,
-    artist: string,
-    starIndex: number
-  ) => {
-    const newRating = starIndex + 1;
-    const currentRating = getRating(videoId);
+  const handleToggleFavorite = useCallback(
+    (id: string) => {
+      toggleFavorite(id);
+    },
+    [toggleFavorite]
+  );
 
-    // 같은 별을 다시 클릭하면 별점 제거 (0점)
-    if (currentRating === newRating) {
-      setRating(videoId, 0, artist);
-    } else {
-      setRating(videoId, newRating, artist);
-    }
-  };
+  const handleRate = useCallback(
+    (videoId: string, artist: string, starIndex: number) => {
+      const currentRating = getRating(videoId); 
+      const newRating = starIndex + 1;
+      if (currentRating === newRating) {
+        setRating(videoId, 0, artist);
+      } else {
+        setRating(videoId, newRating, artist);
+      }
+    },
+    [setRating, getRating]
+  );
 
-  // 별점 UI 렌더링
-  const renderStars = (videoId: string, artist: string) => {
-    const currentRating = getRating(videoId);
+  const handlePressSong = useCallback(
+    (song: Song) => {
+      router.push({
+        pathname: "/player",
+        params: {
+          videoId: song.videoId,
+          title: song.title,
+          artist: song.artist,
+        },
+      });
+    },
+    [router]
+  );
 
-    return (
-      <View style={{ flexDirection: "row", marginTop: 4 }}>
-        {[0, 1, 2, 3, 4].map((starIndex) => {
-          const isSelected = starIndex < currentRating;
+  const renderItem = useCallback(
+    ({ item }: { item: ListItem }) => {
+      if (item.type === "ad") {
+        return null; 
+      }
 
-          return (
-            <TouchableOpacity
-              key={starIndex}
-              onPress={() => handleStarPress(videoId, artist, starIndex)}
-              hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-            >
-              <Ionicons
-                name={isSelected ? "star" : "star-outline"}
-                size={18}
-                color={isSelected ? "#FFD700" : "#aaa"} // 금색 vs 회색
-                style={{ marginRight: 2 }}
-              />
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-  };
+      const song = item as SongItem;
+      
+      return (
+        <SongListItem
+          song={song}
+          isFav={isFavorite(song.videoId)}
+          rating={getRating(song.videoId)}
+          onToggleFavorite={handleToggleFavorite}
+          onRate={handleRate}
+          onPress={handlePressSong}
+        />
+      );
+    },
+    [isFavorite, getRating, handleToggleFavorite, handleRate, handlePressSong]
+  );
 
-  // 🔧 수정: 빈 리스트 컴포넌트를 안전하게 처리
   const renderEmptyComponent = () => (
     <Text
       style={[
@@ -114,82 +212,12 @@ export default function SongList({ songs, showAds = true }: SongListProps) {
     <FlatList<ListItem>
       data={dataWithAds}
       keyExtractor={(item) => item.key}
-      renderItem={({ item }) => {
-        if (item.type === "ad") {
-          // return (
-          //   <View style={{ paddingVertical: 16, alignItems: "center" }}>
-          //     {/* <MyBannerAd /> */}
-          //   </View>
-          // );
-          return null;
-        }
-
-        // SongItem 타입 단언
-        const song = item as SongItem;
-        const isFav = isFavorite(song.videoId);
-        const thumbnailUrl = song.thumbnail;
-
-        return (
-          <View style={[styles.borderBottom, { paddingVertical: 16 }]}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Image
-                source={{ uri: thumbnailUrl }}
-                style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: 6,
-                  marginRight: 12,
-                }}
-              />
-
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.text, { marginBottom: 4 }]}>
-                  {song.title}
-                </Text>
-                <Text style={[styles.text, { fontSize: 14, opacity: 0.7 }]}>
-                  {song.artist}
-                </Text>
-
-                {renderStars(song.videoId, song.artist)}
-              </View>
-
-              <View
-                style={{
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  height: 72,
-                  paddingVertical: 4,
-                }}
-              >
-                <TouchableOpacity onPress={() => toggleFavorite(song.videoId)}>
-                  <Ionicons
-                    name={isFav ? "heart" : "heart-outline"}
-                    size={24}
-                    color={isFav ? "#ff4f4f" : "#aaa"}
-                  />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => {
-                    router.push({
-                      pathname: "/player",
-                      params: {
-                        videoId: song.videoId,
-                        title: song.title,
-                        artist: song.artist,
-                      },
-                    });
-                  }}
-                >
-                  <Ionicons name="chevron-forward" size={24} color="#999" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        );
-      }}
+      renderItem={renderItem}
       ListEmptyComponent={renderEmptyComponent}
+      initialNumToRender={8}
+      maxToRenderPerBatch={8}
+      windowSize={5}
+      removeClippedSubviews={true}
     />
   );
 }

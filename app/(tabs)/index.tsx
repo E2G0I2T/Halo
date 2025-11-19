@@ -279,6 +279,7 @@ function IndexContent({
 export default function IndexScreen() {
   const styles = useAppStyles();
   const [searchText, setSearchText] = useState("");
+  const [debouncedSearchText, setDebouncedSearchText] = useState("");
 
   const authState = useAuth();
   const {
@@ -328,6 +329,14 @@ export default function IndexScreen() {
   const [frozenRatings, setFrozenRatings] = useState<Record<string, number>>(
     {}
   );
+
+  useEffect(() => {
+  const timer = setTimeout(() => {
+    setDebouncedSearchText(searchText);
+  }, 300); // 300ms 딜레이
+
+  return () => clearTimeout(timer); // 타이핑이 계속되면 이전 타이머 취소
+}, [searchText]);
 
   useEffect(() => {
     if (_internal?.onRatingChanged && setOnRatingChangeCallback) {
@@ -403,22 +412,26 @@ export default function IndexScreen() {
   }, [bufferedSongs, frozenRatings, ratings]); // recommendationOrder 의존성 제거
 
   const filteredData = useMemo(() => {
-    const safeSongs = Array.isArray(finalSongList) ? finalSongList : [];
-    if (searchText === "") {
-      return safeSongs;
-    }
+  const safeSongs = Array.isArray(finalSongList) ? finalSongList : [];
+  
+  // 🔧 수정: searchText -> debouncedSearchText 로 변경
+  if (debouncedSearchText === "") {
+    return safeSongs;
+  }
 
-    const lower = searchText.toLowerCase();
-    return safeSongs.filter((song) => {
-      if (!song || typeof song !== "object") return false;
-      const safeTitle = song.title || "";
-      const safeArtist = song.artist || "";
-      return (
-        safeTitle.toLowerCase().includes(lower) ||
-        safeArtist.toLowerCase().includes(lower)
-      );
-    });
-  }, [finalSongList, searchText]);
+  // 🔧 수정: searchText -> debouncedSearchText 로 변경
+  const lower = debouncedSearchText.toLowerCase();
+  return safeSongs.filter((song) => {
+    if (!song || typeof song !== "object") return false;
+    const safeTitle = song.title || "";
+    const safeArtist = song.artist || "";
+    return (
+      safeTitle.toLowerCase().includes(lower) ||
+      safeArtist.toLowerCase().includes(lower)
+    );
+  });
+  // 🔧 수정: 의존성 배열에 searchText 대신 debouncedSearchText 추가
+}, [finalSongList, debouncedSearchText]);
 
   if (authLoading || songsLoading) {
     return <LoadingScreen message="음악 데이터를 불러오는 중..." />;
