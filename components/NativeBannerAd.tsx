@@ -1,23 +1,30 @@
 // components/NativeBannerAd.tsx
-import React from "react";
-import { View, Text } from "react-native"; // 임시 import
+
+import React from 'react';
+import { View } from 'react-native';
+import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+
+// 실제 배포 시에는 본인의 광고 단위 ID(Ad Unit ID)를 넣어야 합니다.
+// 개발 중에는 TestIds.BANNER를 사용해야 계정 정지를 피할 수 있습니다.
+const adUnitId = __DEV__ ? TestIds.BANNER : 'ca-app-pub-xxxxxxxxxxxxx/yyyyy';
 
 export default function NativeBannerAd() {
   return (
-    <View style={{ backgroundColor: "#f5f5f5", height: 60, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: "#888" }}>[네이티브 광고 제거됨]</Text>
+    <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 10 }}>
+      <BannerAd
+        unitId={adUnitId}
+        // 🔧 수정됨: ANCHored -> ANCHORED (전부 대문자여야 합니다)
+        size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} 
+        requestOptions={{
+          requestNonPersonalizedAdsOnly: true,
+        }}
+        onAdLoaded={() => {
+            console.log('광고 로드 성공');
+        }}
+        onAdFailedToLoad={(error) => {
+            console.error('광고 로드 실패', error);
+        }}
+      />
     </View>
   );
-  /* // react-native-google-mobile-ads 관련 코드 전체 주석 처리
-  import { BannerAd, BannerAdSize, TestIds } from "react-native-google-mobile-ads";
-
-  return (
-    <BannerAd
-      unitId={TestIds.BANNER}
-      size={BannerAdSize.ADAPTIVE_BANNER}
-      requestOptions={{ requestNonPersonalizedAdsOnly: true }}
-      onAdFailedToLoad={error => console.warn(error)}
-    />
-  );
-  */
 }

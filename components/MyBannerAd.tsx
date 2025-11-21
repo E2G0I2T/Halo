@@ -1,22 +1,17 @@
-// components/MyBannerAd.tsx
-
 import React from "react";
 import { View, Text } from "react-native";
+import NativeBannerAd from "./NativeBannerAd"; // 👈 직접 import
 
 export default function MyBannerAd() {
-  // 개발(Expo Go)에서는 더미 광고
-  return (
-    <View style={{ backgroundColor: "#f5f5f5", height: 60, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: "#888" }}>[광고 제거됨]</Text>
-    </View>
-  );
-
-  /* // EAS 빌드 관련 코드 전체 주석 처리
-  if (__DEV__) {
-    // ... (기존 더미 광고 로직)
+  // Expo Go에서 실행 중일 때를 대비한 방어 코드 (선택 사항)
+  // Development Build에서는 정상 작동함
+  try {
+    return <NativeBannerAd />;
+  } catch (error) {
+    return (
+      <View style={{ height: 60, backgroundColor: '#f0f0f0', alignItems: 'center', justifyContent: 'center' }}>
+        <Text>광고 로드 중 오류 발생</Text>
+      </View>
+    );
   }
-  // EAS 빌드에서는 동적 import 사용 (동기 방식 불가, hooks/상태 등 필요)
-  const BannerAdComponent = require("./NativeBannerAd").default;
-  return <BannerAdComponent />;
-  */
 }

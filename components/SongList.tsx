@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { Song } from "@/lib/types/song";
 import { useFavorites } from "@/lib/contexts/FavoritesContext";
 import { useRatings } from "@/lib/contexts/RatingsContext";
+import MyBannerAd from "./MyBannerAd";
 
 // 타입 정의
 export type SongItem = {
@@ -178,7 +179,11 @@ export default function SongList({ songs, showAds = true }: SongListProps) {
   const renderItem = useCallback(
     ({ item }: { item: ListItem }) => {
       if (item.type === "ad") {
-        return null; 
+        return (
+          <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+            <MyBannerAd />
+          </View>
+        );
       }
 
       const song = item as SongItem;

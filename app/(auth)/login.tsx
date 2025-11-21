@@ -1,7 +1,7 @@
 // app/(auth)/login.tsx - 단순화된 로그인 화면
 
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator, Alert, Image, Linking } from 'react-native';
 import { GoogleSigninButton } from '@react-native-google-signin/google-signin';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useRouter } from 'expo-router';
@@ -19,8 +19,8 @@ export default function LoginScreen() {
   };
 
   const handlePrivacyPolicy = () => {
-    // 추후 개인정보 처리방침 링크 추가
-    console.log('개인정보 처리방침 링크 클릭');
+    // 방금 만든 개인정보 처리방침 URL을 넣으세요
+    Linking.openURL('https://0paleblue0.blogspot.com/2025/11/halo.html'); 
   };
 
   return (

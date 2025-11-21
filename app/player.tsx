@@ -1,6 +1,6 @@
 // app/player.tsx
 
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native"; // ActivityIndicator 추가
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, useWindowDimensions } from "react-native"; // ActivityIndicator 추가
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAppStyles } from "@/theme/styles";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +10,8 @@ import { useRatings } from "@/lib/contexts/RatingsContext";
 export default function PlayerScreen() {
   const styles = useAppStyles();
   const router = useRouter();
+  const { width: screenWidth } = useWindowDimensions();
+  const videoHeight = screenWidth * (9 / 16);
   const { setRating, getRating } = useRatings();
   const { videoId, title, artist } = useLocalSearchParams<{
     videoId: string;
@@ -33,15 +35,15 @@ export default function PlayerScreen() {
     );
   }
 
-  // ✅ 핵심 수정 2: 도메인 변경 (youtube-nocookie.com) 및 HTML 최적화
   const embedHtml = `
     <!DOCTYPE html>
     <html>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <style>
-          body { margin: 0; padding: 0; background-color: black; display: flex; justify-content: center; align-items: center; height: 100%; overflow: hidden; }
-          iframe { width: 100%; height: 100%; border: 0; }
+          /* 여백 제거 및 꽉 채우기 */
+          body, html { width: 100vw; height: 100vh; margin: 0; padding: 0; background-color: black; overflow: hidden; }
+          iframe { width: 100vw; height: 100vh; border: 0; }
         </style>
       </head>
       <body>
@@ -98,15 +100,16 @@ export default function PlayerScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={localStyles.webViewContainer}>
+      <View style={[
+        localStyles.webViewContainer, 
+        { height: videoHeight, width: screenWidth, alignSelf: 'center' }
+      ]}>
         <WebView
           style={{ flex: 1, backgroundColor: "black" }}
           source={{
             html: embedHtml,
-            // ✅ 핵심 수정 3: baseUrl을 youtube-nocookie로 변경
             baseUrl: "https://www.youtube-nocookie.com" 
           }}
-          // ✅ 핵심 수정 4: UserAgent를 조금 더 일반적인 값으로 변경 (또는 제거해봐도 됨)
           userAgent="Mozilla/5.0 (Linux; Android 10; Android SDK built for x86) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
           javaScriptEnabled={true}
           domStorageEnabled={true}
@@ -119,7 +122,6 @@ export default function PlayerScreen() {
               <ActivityIndicator size="large" color="#ff4f4f" />
             </View>
           )}
-          // 에러 발생 시 로그 출력
           onError={(syntheticEvent) => {
             const { nativeEvent } = syntheticEvent;
             console.warn('WebView error: ', nativeEvent);
@@ -140,7 +142,6 @@ export default function PlayerScreen() {
 }
 
 const localStyles = StyleSheet.create({
-  // ... (기존 스타일 유지)
   centerContainer: {
     paddingTop: 50,
     justifyContent: "center",
@@ -155,9 +156,10 @@ const localStyles = StyleSheet.create({
     padding: 12,
   },
   webViewContainer: {
-    height: 220,
     backgroundColor: "black",
     marginBottom: 16,
+    marginLeft: 0, 
+    marginRight: 0,
   },
   infoContainer: {
     paddingHorizontal: 16,
