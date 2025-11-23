@@ -412,26 +412,37 @@ export default function IndexScreen() {
   }, [bufferedSongs, frozenRatings, ratings]); // recommendationOrder 의존성 제거
 
   const filteredData = useMemo(() => {
-  const safeSongs = Array.isArray(finalSongList) ? finalSongList : [];
-  
-  // 🔧 수정: searchText -> debouncedSearchText 로 변경
-  if (debouncedSearchText === "") {
-    return safeSongs;
-  }
+    const safeSongs = Array.isArray(finalSongList) ? finalSongList : [];
+    
+    if (debouncedSearchText === "") {
+      return safeSongs;
+    }
 
-  // 🔧 수정: searchText -> debouncedSearchText 로 변경
-  const lower = debouncedSearchText.toLowerCase();
-  return safeSongs.filter((song) => {
-    if (!song || typeof song !== "object") return false;
-    const safeTitle = song.title || "";
-    const safeArtist = song.artist || "";
-    return (
-      safeTitle.toLowerCase().includes(lower) ||
-      safeArtist.toLowerCase().includes(lower)
-    );
-  });
-  // 🔧 수정: 의존성 배열에 searchText 대신 debouncedSearchText 추가
-}, [finalSongList, debouncedSearchText]);
+    const lower = debouncedSearchText.toLowerCase();
+    
+    return safeSongs.filter((song: any) => { // song 타입에 search_keywords가 없으면 any로 처리하거나 타입 정의 수정
+      if (!song || typeof song !== "object") return false;
+      
+      const safeTitle = song.title || "";
+      const safeArtist = song.artist || "";
+      
+      // 1. 제목/가수 검색
+      if (safeTitle.toLowerCase().includes(lower) || 
+          safeArtist.toLowerCase().includes(lower)) {
+        return true;
+      }
+
+      // 2. ✨ 숨겨진 키워드 검색
+      if (song.search_keywords && Array.isArray(song.search_keywords)) {
+        // 배열 안에 검색어가 포함된 항목이 하나라도 있으면 True
+        return song.search_keywords.some((keyword: string) => 
+          keyword.toLowerCase().includes(lower)
+        );
+      }
+      
+      return false;
+    });
+  }, [finalSongList, debouncedSearchText]);
 
   if (authLoading || songsLoading) {
     return <LoadingScreen message="음악 데이터를 불러오는 중..." />;
