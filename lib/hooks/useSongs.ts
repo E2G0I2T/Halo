@@ -316,6 +316,8 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
   const loadInitialData = async () => {
     try {
       console.log("📥 초기 데이터 로드 시작...");
+      
+      // 1. 캐시된 데이터 먼저 로드 (속도 향상)
       const cachedSongs = await getCachedSongs();
       let initialSongs: Song[] = [];
       if (cachedSongs.length > 0) {
@@ -326,39 +328,40 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
 
       setOriginalSongs(initialSongs);
 
-      // 2. Auth 상태에 따라 추천 목록 로드 (로그인 상태 확인)
-      let recommendations: string[] = [];
+      // 2. 추천 목록 로드
       if (isAuthReady && user?.uid) {
         await loadRecommendations(user.uid);
       }
 
-      const shouldCheck = await shouldCheckForNewData();
-      if (shouldCheck) {
-        console.log("🔍 [BG] 새 데이터 확인 중...");
-        const hasNewData = await checkForNewData();
+      // 3. [복구 완료] 하루에 한 번만 새 데이터 확인 (비용 절감)
+      // 테스트 할 때 'const shouldCheck = true;' 로 했던 것을 다시 되돌립니다.
+      const shouldCheck = await shouldCheckForNewData(); 
 
-        if (hasNewData) {
-          console.log("🆕 [BG] 새 데이터 발견, 업데이트 중...");
-          await updateDataFromFirebase(); // ⬅️ 이것은 setSongs를 다시 호출함
-        } else {
-          console.log("👍 [BG] 데이터가 최신입니다.");
-        }
+      if (shouldCheck) {
+        console.log("🔍 [BG] 정기 데이터 업데이트 확인 중...");
+        
+        // 오늘 처음 켜는 거라면 서버에서 데이터 가져오기
+        await updateDataFromFirebase(true); 
+        
+        // "오늘 체크했음" 도장 찍기
         await markTodayAsChecked();
+      } else {
+        console.log("👍 [BG] 오늘은 이미 최신 데이터를 확인했습니다.");
       }
+
     } catch (error: any) {
       console.error("❌ 초기 데이터 로드 실패:", error);
       if (originalSongs.length === 0) {
         setOriginalSongs(fallbackSongs);
-        console.log("🔄 에러 발생, Fallback 데이터 사용");
       }
       setErrorSafely(
         `데이터 로드 실패: ${error?.message || "알 수 없는 오류"}`
       );
     } finally {
       setLoading(false);
-      console.log("✅ 초기 로드 절차 완료. UI 렌더링.");
+      console.log("✅ 초기 로드 절차 완료.");
     }
-  }; // Firebase에서 새 데이터 업데이트
+  };
 
   const updateDataFromFirebase = async (ignoreCache: boolean = false) => {
     try {
