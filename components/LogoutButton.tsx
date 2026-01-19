@@ -4,7 +4,7 @@ import { TouchableOpacity, Text, Alert } from 'react-native';
 import { useAuth } from '../lib/contexts/AuthContext';
 
 export default function LogoutButton() {
-  const { logout, user } = useAuth(); // 🔧 signOut → logout으로 수정
+  const { logout, user } = useAuth();
 
   const handleLogout = () => {
     Alert.alert(
@@ -21,7 +21,7 @@ export default function LogoutButton() {
           onPress: async () => {
             try {
               console.log('🚪 로그아웃 시작...');
-              await logout(); // 🔧 signOut() → logout()으로 수정
+              await logout();
               console.log('✅ 로그아웃 완료');
             } catch (error) {
               console.error('❌ 로그아웃 실패:', error);

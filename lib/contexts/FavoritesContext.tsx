@@ -80,7 +80,6 @@ export const FavoritesProvider: React.FC<FavoritesProviderProps> = ({ children }
   );
 };
 
-// 커스텀 훅
 export const useFavorites = () => {
   const context = useContext(FavoritesContext);
   if (!context) {

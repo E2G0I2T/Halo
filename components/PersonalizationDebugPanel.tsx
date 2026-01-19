@@ -1,5 +1,4 @@
 // components/PersonalizationDebugPanel.tsx
-// 수정된 버전 - getAllRatings 에러 해결
 
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Alert, ScrollView } from 'react-native';
@@ -21,7 +20,7 @@ interface DiagnosisResult {
 
 export const PersonalizationDebugPanel: React.FC = () => {
   const { user } = useAuth();
-  const { getRating } = useRatings(); // getAllRatings 제거
+  const { getRating } = useRatings();
   const [results, setResults] = useState<DiagnosisResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
 
@@ -43,10 +42,8 @@ export const PersonalizationDebugPanel: React.FC = () => {
     try {
       addResult('초기화', 'info', `진단 시작 - 사용자 ID: ${user.uid}`, { userId: user.uid });
 
-      // === 1단계: 클라이언트 별점 데이터 확인 (수정됨) ===
       addResult('1단계', 'info', 'RatingsContext에서 별점 데이터 확인 중...');
       
-      // 🔧 getAllRatings 대신 알려진 videoId들로 테스트
       const testVideoIds = [
         'oZpYEEcvu5I', 'mX9IJ7Urn28', 'goCvO7uJhu8', 
         '4Bqaflz8XZU', 'F8p-5hGLe7s', 'QjZKNhEMeM4'
@@ -63,14 +60,12 @@ export const PersonalizationDebugPanel: React.FC = () => {
             ratingCount++;
           }
         } catch (error) {
-          // 개별 별점 조회 실패는 무시
         }
       }
       
       if (ratingCount > 0) {
         addResult('1단계', 'success', `로컬 별점 데이터 발견: ${ratingCount}개`, localRatings);
         
-        // 샘플 별점 표시
         Object.entries(localRatings).forEach(([videoId, rating]) => {
           addResult('1단계', 'info', `샘플 별점: ${videoId} = ${rating}점`);
         });
@@ -78,7 +73,6 @@ export const PersonalizationDebugPanel: React.FC = () => {
         addResult('1단계', 'error', '로컬 별점 데이터가 없습니다 - 먼저 곡에 별점을 매겨보세요');
       }
 
-      // === 2단계: Firestore 직접 확인 ===
       addResult('2단계', 'info', 'Firestore에서 별점 데이터 직접 확인 중...');
       
       const possiblePaths = [
@@ -123,7 +117,6 @@ export const PersonalizationDebugPanel: React.FC = () => {
       if (!foundData) {
         addResult('2단계', 'error', '모든 가능한 Firestore 경로에서 데이터를 찾지 못했습니다');
         
-        // 특정 문서 직접 확인
         if (ratingCount > 0) {
           const sampleVideoId = Object.keys(localRatings)[0];
           addResult('2단계', 'info', `특정 문서 직접 확인: ${sampleVideoId}`);
@@ -152,7 +145,6 @@ export const PersonalizationDebugPanel: React.FC = () => {
         }
       }
 
-      // === 3단계: Firebase Functions 호출 테스트 ===
       addResult('3단계', 'info', 'Firebase Functions 호출 테스트 중...');
       
       try {
@@ -174,7 +166,6 @@ export const PersonalizationDebugPanel: React.FC = () => {
           );
         }
         
-        // 디버그 정보가 있다면 표시
         if (responseData.debug) {
           addResult('3단계', 'info', 'Functions 디버그 정보', responseData.debug);
         }
@@ -183,11 +174,9 @@ export const PersonalizationDebugPanel: React.FC = () => {
         addResult('3단계', 'error', `Functions 호출 실패: ${error.message}`, { error: error.toString() });
       }
 
-      // === 4단계: 권한 및 규칙 확인 ===
       addResult('4단계', 'info', 'Firebase 권한 및 보안 규칙 테스트 중...');
       
       try {
-        // 간단한 읽기 테스트
         const testPath = `users/${user.uid}`;
         const testRef = doc(db, testPath);
         await getDoc(testRef);
@@ -197,7 +186,6 @@ export const PersonalizationDebugPanel: React.FC = () => {
         addResult('4단계', 'error', `권한 테스트 실패: ${error.message}`);
       }
 
-      // === 5단계: 종합 진단 ===
       addResult('5단계', 'info', '종합 진단 중...');
       
       if (ratingCount > 0 && foundData) {
@@ -223,7 +211,6 @@ export const PersonalizationDebugPanel: React.FC = () => {
     try {
       addResult('테스트', 'info', '별점 함수 테스트 중...');
       
-      // 몇 개 videoId로 별점 테스트
       const testVideoIds = ['oZpYEEcvu5I', 'mX9IJ7Urn28'];
       
       for (const videoId of testVideoIds) {

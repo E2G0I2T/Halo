@@ -1,57 +1,153 @@
-// app/(tabs)/favorites.tsx - 프로덕션용 정리
-
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, FlatList } from "react-native";
+import { Image } from "expo-image";
 import { useAppStyles } from "@/theme/styles";
-import { useState } from "react";
-import SongList from "@/components/SongList";
+import { useState, useMemo, useCallback, memo } from "react";
 import { useSongs } from "@/lib/hooks/useSongs";
 import { useFavorites } from "@/lib/contexts/FavoritesContext";
 import { useRatings } from "@/lib/contexts/RatingsContext";
+import { useAuth } from "@/lib/contexts/AuthContext";
 import LoadingScreen from "@/components/LoadingScreen";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
-// 필터 타입 정의
 type RatingFilter = 'all' | 'rated' | 'unrated';
+
+const FavoriteListItem = memo(({ 
+  item, 
+  rating, 
+  isFav,
+  onRate, 
+  onToggleFavorite, 
+  onPress, 
+  styles 
+}: {
+  item: any,
+  rating: number,
+  isFav: boolean,
+  onRate: (videoId: string, artist: string, star: number) => void,
+  onToggleFavorite: (videoId: string) => void,
+  onPress: (song: any) => void,
+  styles: any
+}) => {
+  return (
+    <View style={[styles.borderBottom, { paddingVertical: 16 }]}>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        
+        <Image
+          source={item.thumbnail}
+          style={{ width: 60, height: 60, borderRadius: 6, marginRight: 12 }}
+          contentFit="cover"
+          transition={200}
+          cachePolicy="memory-disk"
+        />
+
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.text, { marginBottom: 4 }]} numberOfLines={1}>{item.title}</Text>
+          <Text style={[styles.text, { fontSize: 14, opacity: 0.7 }]} numberOfLines={1}>
+            {item.artist}
+          </Text>
+
+          <View style={{ flexDirection: "row", marginTop: 4 }}>
+            {[0, 1, 2, 3, 4].map((starIndex) => {
+              const isSelected = starIndex < rating;
+              return (
+                <TouchableOpacity
+                  key={starIndex}
+                  onPress={() => onRate(item.videoId, item.artist, starIndex)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons
+                    name={isSelected ? "star" : "star-outline"}
+                    size={18}
+                    color={isSelected ? "#FFD700" : "#aaa"}
+                    style={{ marginRight: 2 }}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View
+          style={{
+            alignItems: "center",
+            justifyContent: "space-between",
+            height: 72,
+            paddingVertical: 4,
+          }}
+        >
+          <TouchableOpacity 
+            onPress={() => onToggleFavorite(item.videoId)} 
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons
+              name={isFav ? "heart" : "heart-outline"}
+              size={24}
+              color={isFav ? "#ff4f4f" : "#aaa"}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            onPress={() => onPress(item)} 
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="chevron-forward" size={24} color="#999" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}, (prev, next) => {
+  return (
+    prev.item.videoId === next.item.videoId &&
+    prev.rating === next.rating &&
+    prev.isFav === next.isFav &&
+    prev.item.title === next.item.title
+  );
+});
 
 export default function FavoritesScreen() {
   const styles = useAppStyles();
+  const router = useRouter();
   
-  // Firebase 연동된 useSongs 훅 사용
-  const { songs, loading, error } = useSongs();
+  const { user, isFirebaseReady, isAuthReady, loading: authLoading } = useAuth();
   
-  // 전역 즐겨찾기 상태 사용
-  const { favorites, loading: favoritesLoading } = useFavorites();
-  
-  // 별점 컨텍스트
-  const { getRating } = useRatings();
-  
-  // 별점 필터 상태
-  const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
-
-  // 안전한 배열 처리
-  const safeSongs = Array.isArray(songs) ? songs : [];
-  const safeFavorites = Array.isArray(favorites) ? favorites : [];
-  
-  const favoriteSongs = safeSongs.filter((song) =>
-    safeFavorites.includes(song.videoId)
+  const authStateForUseSongs = useMemo(
+    () => ({
+      user,
+      isFirebaseReady,
+      isAuthReady,
+      loading: authLoading,
+    }),
+    [user, isFirebaseReady, isAuthReady, authLoading]
   );
 
-  // 별점 필터 적용
-  const applyRatingFilter = (songs: any[]) => {
-    if (!Array.isArray(songs)) return [];
+  const { songs, loading: songsLoading, error } = useSongs(authStateForUseSongs);
+  const { favorites, loading: favoritesLoading, toggleFavorite, isFavorite } = useFavorites();
+  const { getRating, setRating } = useRatings();
+  
+  const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
+
+  const safeSongs = useMemo(() => Array.isArray(songs) ? songs : [], [songs]);
+  const safeFavorites = useMemo(() => Array.isArray(favorites) ? favorites : [], [favorites]);
+  
+  const favoriteSongs = useMemo(() => {
+    return safeSongs.filter((song) => safeFavorites.includes(song.videoId));
+  }, [safeSongs, safeFavorites]);
+
+  const finalFilteredSongs = useMemo(() => {
+    if (!Array.isArray(favoriteSongs)) return [];
     
     switch (ratingFilter) {
       case 'rated':
-        return songs.filter(song => getRating(song.videoId) > 0);
+        return favoriteSongs.filter(song => getRating(song.videoId) > 0);
       case 'unrated':
-        return songs.filter(song => getRating(song.videoId) === 0);
+        return favoriteSongs.filter(song => getRating(song.videoId) === 0);
       default:
-        return songs;
+        return favoriteSongs;
     }
-  };
+  }, [favoriteSongs, ratingFilter, getRating]);
 
-  const finalFilteredSongs = applyRatingFilter(favoriteSongs);
-
-  // 필터 버튼 렌더링
   const renderFilterButtons = () => {
     const filters: { key: RatingFilter; label: string; icon: string }[] = [
       { key: 'all', label: '전체', icon: '🎵' },
@@ -94,7 +190,6 @@ export default function FavoritesScreen() {
     );
   };
 
-  // 안전한 결과 개수 렌더링
   const renderResultCount = () => {
     const count = Array.isArray(finalFilteredSongs) ? finalFilteredSongs.length : 0;
     return (
@@ -109,12 +204,46 @@ export default function FavoritesScreen() {
     );
   };
 
-  // 로딩 중일 때
-  if (loading || favoritesLoading) {
+  const handleRate = useCallback((videoId: string, artist: string, starIndex: number) => {
+    setRating(videoId, starIndex + 1, artist); 
+  }, [setRating]);
+
+  const handlePressSong = useCallback((song: any) => {
+    router.push({
+      pathname: "/player",
+      params: {
+        videoId: song.videoId,
+        title: song.title,
+        artist: song.artist,
+      },
+    });
+  }, [router]);
+
+  const handleToggleFavorite = useCallback((videoId: string) => {
+    toggleFavorite(videoId);
+  }, [toggleFavorite]);
+
+  const renderItem = useCallback(({ item }: { item: any }) => {
+    const rating = getRating(item.videoId);
+    const isFav = isFavorite(item.videoId);
+
+    return (
+      <FavoriteListItem 
+        item={item}
+        rating={rating}
+        isFav={isFav}
+        onRate={handleRate}
+        onToggleFavorite={handleToggleFavorite}
+        onPress={handlePressSong}
+        styles={styles}
+      />
+    );
+  }, [styles, getRating, isFavorite, handleRate, handleToggleFavorite, handlePressSong]);
+
+  if (authLoading || songsLoading || favoritesLoading) {
     return <LoadingScreen message="즐겨찾기를 불러오는 중..." />;
   }
 
-  // 에러가 있을 때
   if (error) {
     return (
       <View style={[styles.container, { paddingTop: 50, justifyContent: 'center', alignItems: 'center' }]}>
@@ -127,14 +256,9 @@ export default function FavoritesScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: 50 }]}>
-      
-      {/* 별점 필터 버튼들 */}
       {renderFilterButtons()}
-
-      {/* 안전한 필터링된 결과 개수 표시 */}
       {renderResultCount()}
 
-      {/* 안전한 조건부 렌더링 */}
       {Array.isArray(favoriteSongs) && favoriteSongs.length === 0 ? (
         <View style={{ justifyContent: 'center', alignItems: 'center', marginTop: 40 }}>
           <Text style={[styles.text, { opacity: 0.6, textAlign: 'center' }]}>
@@ -142,9 +266,14 @@ export default function FavoritesScreen() {
           </Text>
         </View>
       ) : (
-        <SongList
-          songs={Array.isArray(finalFilteredSongs) ? finalFilteredSongs : []}
-          showAds={true}
+        <FlatList
+          data={Array.isArray(finalFilteredSongs) ? finalFilteredSongs : []}
+          keyExtractor={(item) => item.videoId}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          initialNumToRender={10}
+          windowSize={5}
+          extraData={[favorites, getRating, isFavorite]}
         />
       )}
     </View>

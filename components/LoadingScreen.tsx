@@ -1,4 +1,4 @@
-// components/LoadingScreen.tsx - 로고가 있는 로딩 화면
+// components/LoadingScreen.tsx
 
 import React from 'react';
 import { View, Text, Image, ActivityIndicator } from 'react-native';
@@ -18,7 +18,6 @@ export default function LoadingScreen({ message = "로딩 중..." }: LoadingScre
       paddingHorizontal: 24
     }]}>
       
-      {/* 앱 로고 */}
       <Image 
         source={require('../assets/images/icon.png')} 
         style={{
@@ -30,7 +29,6 @@ export default function LoadingScreen({ message = "로딩 중..." }: LoadingScre
         resizeMode="cover"
       />
 
-      {/* 앱 이름 */}
       <Text style={[styles.text, {
         fontSize: 32,
         fontWeight: 'bold',
@@ -40,14 +38,12 @@ export default function LoadingScreen({ message = "로딩 중..." }: LoadingScre
         Halo
       </Text>
 
-      {/* 로딩 인디케이터 */}
       <ActivityIndicator 
         size="large" 
         color="#ff4f4f" 
         style={{ marginBottom: 16 }} 
       />
       
-      {/* 로딩 메시지 */}
       <Text style={[styles.text, { 
         fontSize: 16,
         opacity: 0.7,

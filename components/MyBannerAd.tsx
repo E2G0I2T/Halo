@@ -1,10 +1,8 @@
 import React from "react";
 import { View, Text } from "react-native";
-import NativeBannerAd from "./NativeBannerAd"; // 👈 직접 import
+import NativeBannerAd from "./NativeBannerAd";
 
 export default function MyBannerAd() {
-  // Expo Go에서 실행 중일 때를 대비한 방어 코드 (선택 사항)
-  // Development Build에서는 정상 작동함
   try {
     return <NativeBannerAd />;
   } catch (error) {

@@ -1,4 +1,4 @@
-// app/(auth)/login.tsx - 단순화된 로그인 화면
+// app/(auth)/login.tsx
 
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator, Alert, Image, Linking } from 'react-native';
@@ -19,7 +19,6 @@ export default function LoginScreen() {
   };
 
   const handlePrivacyPolicy = () => {
-    // 방금 만든 개인정보 처리방침 URL을 넣으세요
     Linking.openURL('https://0paleblue0.blogspot.com/2025/11/halo.html'); 
   };
 
@@ -27,10 +26,8 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         
-        {/* 상단 여백 (1/3) */}
         <View style={styles.topSpacer} />
         
-        {/* 아이콘 영역 */}
         <View style={styles.iconPlaceholder}>
           <Image 
             source={require('../../assets/images/icon.png')} 
@@ -39,21 +36,18 @@ export default function LoginScreen() {
           />
         </View>
 
-        {/* 로그인 섹션 */}
         <View style={styles.loginSection}>
           <Text style={styles.loginPrompt}>
             더 나은 음악 추천을 위해{'\n'}
             Google 계정으로 로그인해주세요
           </Text>
 
-          {/* 에러 메시지 */}
           {error && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>⚠️ {error}</Text>
             </View>
           )}
 
-          {/* 로딩 또는 로그인 버튼 */}
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#4285f4" />
@@ -69,10 +63,8 @@ export default function LoginScreen() {
           )}
         </View>
 
-        {/* 하단 여백 공간 확보 */}
         <View style={styles.bottomSpacer} />
 
-        {/* 개인정보 안내 */}
         <View style={styles.privacy}>
           <Text style={styles.privacyText}>
             로그인 시{' '}

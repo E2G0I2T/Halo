@@ -6,7 +6,6 @@ export interface Song {
   thumbnail: string;
 }
 
-// SongList.tsx에서 사용하던 기존 타입 업데이트
 export type SongItem = {
   type: "song";
   key: string;

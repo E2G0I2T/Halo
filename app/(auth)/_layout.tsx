@@ -9,7 +9,7 @@ export default function AuthLayout() {
         name="login" 
         options={{ 
           headerShown: false,
-          gestureEnabled: false, // 뒤로 가기 제스처 비활성화
+          gestureEnabled: false,
         }} 
       />
     </Stack>

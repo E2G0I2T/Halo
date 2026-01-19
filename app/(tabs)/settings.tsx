@@ -1,13 +1,10 @@
-// app/(tabs)/settings.tsx - 프로덕션용 정리
-
-import { View, Text, Switch, ScrollView } from 'react-native';
+import { View, Text, Switch, ScrollView, TouchableOpacity, Linking } from 'react-native';
 import { useAppStyles } from '@/theme/styles';
 import { useTheme } from '@/theme/ThemeContext';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useRatings } from '@/lib/contexts/RatingsContext';
 import { Ionicons } from '@expo/vector-icons';
 import LogoutButton from '@/components/LogoutButton';
-import { PersonalizationDebugPanel } from '@/components/PersonalizationDebugPanel';
 
 export default function SettingsScreen() {
   const styles = useAppStyles();
@@ -17,7 +14,10 @@ export default function SettingsScreen() {
 
   const isDarkMode = theme === 'dark';
 
-  // 안전한 마지막 동기화 시간 포맷
+  const handlePrivacyPolicy = () => {
+    Linking.openURL('https://0paleblue0.blogspot.com/2025/11/halo.html'); 
+  };
+
   const getLastSyncText = (): string => {
     if (!lastSyncTime || typeof lastSyncTime !== 'number') {
       return '별점 동기화 기록 없음';
@@ -35,7 +35,6 @@ export default function SettingsScreen() {
     return `${diffDays}일 전 동기화`;
   };
 
-  // 안전한 서버 연결 상태 표시
   const getServerStatus = () => {
     if (!isFirebaseReady) {
       return {
@@ -65,7 +64,6 @@ export default function SettingsScreen() {
 
   const serverStatus = getServerStatus();
 
-  // 안전한 다크모드 설정 렌더링
   const renderThemeSettings = () => {
     return (
       <View style={{ marginBottom: 40 }}>
@@ -101,7 +99,6 @@ export default function SettingsScreen() {
     );
   };
 
-  // 안전한 서버 상태 렌더링
   const renderServerStatus = () => {
     return (
       <View style={{ marginBottom: 40 }}>
@@ -111,7 +108,7 @@ export default function SettingsScreen() {
         
         <View style={{ 
           flexDirection: 'row', 
-          alignItems: 'center',
+          alignItems: 'center', 
           padding: 20,
           backgroundColor: isDarkMode ? '#333' : '#f8f9fa',
           borderRadius: 16,
@@ -152,7 +149,6 @@ export default function SettingsScreen() {
     );
   };
 
-  // 사용자 계정 정보 렌더링
   const renderAccountInfo = () => {
     if (!user) return null;
 
@@ -172,7 +168,7 @@ export default function SettingsScreen() {
         }}>
           <View style={{ 
             flexDirection: 'row', 
-            alignItems: 'center',
+            alignItems: 'center', 
             marginBottom: 16
           }}>
             <Ionicons 
@@ -189,13 +185,11 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* 로그아웃 버튼 */}
         <LogoutButton />
       </View>
     );
   };
 
-  // 안전한 앱 정보 렌더링
   const renderAppInfo = () => {
     return (
       <View style={{ marginBottom: 40 }}>
@@ -212,7 +206,7 @@ export default function SettingsScreen() {
         }}>
           <View style={{ 
             flexDirection: 'row', 
-            alignItems: 'center',
+            alignItems: 'center', 
             marginBottom: 16
           }}>
             <Ionicons 
@@ -239,36 +233,49 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={[styles.container, { paddingTop: 50 }]}>
+    <ScrollView 
+      style={[styles.container, { paddingTop: 50 }]}
+      contentContainerStyle={{ paddingBottom: 100 }}
+    >
       
-      {/* 다크 모드 설정 */}
       {renderThemeSettings()}
 
-      {/* 서버 연결 상태 */}
       {renderServerStatus()}
 
-      {/* 계정 정보 및 로그아웃 */}
       {renderAccountInfo()}
 
-      {/* 앱 정보 */}
       {renderAppInfo()}
-      <PersonalizationDebugPanel />
 
-      {/* 개발자 정보 */}
       <View style={{ 
-        paddingBottom: 20,
-        alignItems: 'center'
+        paddingBottom: 40,
+        alignItems: 'center',
+        gap: 12
       }}>
         <Text style={[
           styles.text, 
           { 
-            fontSize: 16,
+            fontSize: 14,
             opacity: 0.5,
             textAlign: 'center'
           }
         ]}>
           개인화 음악 추천 시스템
         </Text>
+
+        <TouchableOpacity onPress={handlePrivacyPolicy}>
+          <Text style={[
+            styles.text, 
+            { 
+              fontSize: 13,
+              opacity: 0.7,
+              textAlign: 'center',
+              textDecorationLine: 'underline',
+              marginTop: 8
+            }
+          ]}>
+            개인정보 처리방침
+          </Text>
+        </TouchableOpacity>
       </View>
       
     </ScrollView>

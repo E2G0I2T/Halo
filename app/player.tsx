@@ -19,13 +19,9 @@ export default function PlayerScreen() {
     artist: string;
   }>();
 
-  // ✅ 핵심 수정 1: 공백 제거 (.trim())
   const safeVideoId = typeof videoId === "string" ? videoId.trim() : "";
   const safeTitle = typeof title === "string" ? title : "제목 없음";
   const safeArtist = typeof artist === "string" ? artist : "아티스트 없음";
-
-  // ✅ 디버깅용: 로그 확인 (터미널에서 videoId가 정확한지 확인하세요)
-  console.log("Current Video ID:", `"${safeVideoId}"`);
 
   if (!safeVideoId) {
     return (
@@ -187,7 +183,7 @@ const localStyles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
   },
-  loadingOverlay: { // 새로 추가된 스타일
+  loadingOverlay: {
     position: "absolute",
     top: 0,
     bottom: 0,

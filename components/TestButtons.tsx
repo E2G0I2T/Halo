@@ -6,7 +6,6 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/config/firebase';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
-// 타입 정의
 interface GlobalStatsResult {
   success: boolean;
   message: string;
@@ -50,12 +49,10 @@ export const TestButtons = () => {
       
       const calculateGlobalStatsFunction = httpsCallable(functions, 'calculateGlobalStats');
       
-      // 🔧 현재 사용자 ID를 debugUserId로 전달
       const result = await calculateGlobalStatsFunction({ 
         debugUserId: user?.uid 
       });
       
-      // 🔧 타입 단언 추가
       const data = result.data as GlobalStatsResult;
       
       console.log('✅ 글로벌 통계 계산 완료:', data);
@@ -69,7 +66,6 @@ export const TestButtons = () => {
     }
   };
 
-  // 🔧 사용자 별점 확인 함수 추가 (디버깅용)
   const testUserRatings = async () => {
     if (!user?.uid) {
       Alert.alert('오류', '사용자 로그인이 필요합니다');
@@ -123,7 +119,6 @@ export const TestButtons = () => {
       <Text style={styles.title}>🧪 Functions 테스트</Text>
       <Text style={styles.userId}>사용자: {user?.uid?.substring(0, 8)}...</Text>
       
-      {/* 🔧 사용자 별점 확인 버튼 추가 */}
       <TouchableOpacity style={[styles.button, styles.orangeButton]} onPress={testUserRatings}>
         <Text style={styles.buttonText}>📊 사용자 별점 확인</Text>
       </TouchableOpacity>

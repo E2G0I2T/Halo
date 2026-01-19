@@ -1,8 +1,7 @@
-// lib/types/recommendation.ts - 추천 시스템 전용 타입 정의
+// lib/types/recommendation.ts
 
 import { Song } from './song';
 
-// 🎯 추천 업데이트 상태 타입
 export interface PendingRecommendationUpdate {
   readonly isScheduled: boolean;
   readonly countdown: number;
@@ -13,7 +12,6 @@ export interface PendingRecommendationUpdate {
   readonly batchedChanges?: readonly RatingChange[];
 }
 
-// ⭐ 별점 변경 정보
 export interface RatingChange {
   readonly videoId: string;
   readonly oldRating: number;
@@ -22,7 +20,6 @@ export interface RatingChange {
   readonly userId: string;
 }
 
-// 🔄 추천 계산 결과
 export interface RecommendationCalculation {
   readonly userId: string;
   readonly songIds: readonly string[];
@@ -36,7 +33,6 @@ export interface RecommendationCalculation {
   readonly generatedAt: Date;
 }
 
-// 📊 UX 메트릭
 export interface RecommendationUXMetrics {
   readonly sessionId: string;
   readonly userId: string;
@@ -51,7 +47,6 @@ export interface UXEvent {
   readonly metadata?: Record<string, any>;
 }
 
-// 🎭 애니메이션 상태
 export interface AnimationState {
   readonly isVisible: boolean;
   readonly slidePosition: number;
@@ -60,7 +55,6 @@ export interface AnimationState {
   readonly progress: number;
 }
 
-// 🔗 훅 반환 타입들
 export interface UseSongsReturn {
   readonly songs: readonly Song[];
   readonly loading: boolean;
@@ -90,7 +84,6 @@ export interface UseRatingsReturn {
   readonly setOnRatingChangeCallback: (callback: RatingChangeCallback | null) => void;
 }
 
-// 📞 콜백 타입들
 export type RatingChangeCallback = (
   videoId: string, 
   newRating: number, 
@@ -101,7 +94,6 @@ export type RecommendationApplyCallback = (
   newOrder: readonly string[]
 ) => Promise<void>;
 
-// 🎨 컴포넌트 Props 타입들
 export interface RecommendationUpdateBarProps {
   readonly isVisible: boolean;
   readonly isCalculating: boolean;
@@ -115,7 +107,6 @@ export interface RecommendationUpdateBarProps {
   readonly animationDuration?: number;
 }
 
-// 🔧 설정 타입들
 export interface RecommendationConfig {
   readonly notificationDelay: number;
   readonly autoApplyThreshold: number;
@@ -127,7 +118,6 @@ export interface RecommendationConfig {
   readonly accessibilityMode: boolean;
 }
 
-// 🌍 다국어 지원
 export interface LocalizedStrings {
   readonly notification: {
     readonly title: string;
@@ -148,7 +138,6 @@ export interface LocalizedStrings {
   };
 }
 
-// 🚨 에러 타입들
 export class RecommendationError extends Error {
   constructor(
     message: string,
@@ -170,7 +159,6 @@ export enum RecommendationErrorCode {
   FIREBASE_ERROR = 'FIREBASE_ERROR'
 }
 
-// 🧪 테스트 헬퍼 타입들
 export interface MockRecommendationService {
   readonly getUserRecommendations: jest.Mock;
   readonly generateUserRecommendations: jest.Mock;

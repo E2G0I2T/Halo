@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LAST_REFRESH_KEY = "last-refresh-time";
-const COOLDOWN_DURATION = 60 * 1000; // 1분 (60초)
+const COOLDOWN_DURATION = 60 * 1000;
 
 interface RefreshContextType {
   isRefreshing: boolean;
@@ -24,7 +24,7 @@ const RefreshContext = createContext<RefreshContextType>({
 
 interface RefreshProviderProps {
   children: ReactNode;
-  onRefresh: () => Promise<void>; // 실제 새로고침 로직을 prop으로 받음
+  onRefresh: () => Promise<void>;
 }
 
 export const RefreshProvider: React.FC<RefreshProviderProps> = ({ 
@@ -79,11 +79,8 @@ export const RefreshProvider: React.FC<RefreshProviderProps> = ({
 
     try {
       setIsRefreshing(true);
-      
-      // 실제 새로고침 로직 실행
       await onRefresh();
       
-      // 마지막 새로고침 시간 저장
       await AsyncStorage.setItem(LAST_REFRESH_KEY, Date.now().toString());
       
       // 쿨다운 상태 업데이트
@@ -125,7 +122,6 @@ export const RefreshProvider: React.FC<RefreshProviderProps> = ({
   );
 };
 
-// 커스텀 훅
 export const useRefresh = () => {
   const context = useContext(RefreshContext);
   if (!context) {

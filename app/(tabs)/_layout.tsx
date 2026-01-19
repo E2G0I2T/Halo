@@ -7,8 +7,8 @@ export default function TabLayout() {
     <Tabs
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarShowLabel: false, // 텍스트 제거
-        tabBarActiveTintColor: '#ff4f4f', // 활성 아이콘 색상
+        tabBarShowLabel: false,
+        tabBarActiveTintColor: '#ff4f4f',
         tabBarStyle: {
           backgroundColor: 'white',
         },
@@ -20,7 +20,7 @@ export default function TabLayout() {
           else if (route.name === 'settings') iconName = 'settings';
           else iconName = 'ellipse';
 
-          return <Ionicons name={iconName} size={26} color={color} />; // ✅ 작고 안정적인 크기
+          return <Ionicons name={iconName} size={26} color={color} />;
         },
       })}
     >

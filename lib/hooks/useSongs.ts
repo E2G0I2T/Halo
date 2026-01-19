@@ -20,7 +20,6 @@ const sortSongsByRecommendations = (
 ): Song[] => {
   if (!Array.isArray(songs) || songs.length === 0) return [];
   
-  // 추천 목록이 없으면 전체 랜덤 셔플 (T3만 존재)
   if (!Array.isArray(recommendationOrder) || recommendationOrder.length === 0) {
     const shuffled = [...songs];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -49,10 +48,8 @@ const sortSongsByRecommendations = (
     }
   });
 
-  // T2: 추천 순서대로 정렬 (고정)
   recommendedSongs.sort((a, b) => a.priority - b.priority);
 
-  // T3: 나머지 곡 랜덤 셔플
   for (let i = otherSongs.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [otherSongs[i], otherSongs[j]] = [otherSongs[j], otherSongs[i]];
@@ -61,7 +58,6 @@ const sortSongsByRecommendations = (
   return [...recommendedSongs, ...otherSongs];
 };
 
-// 추천 업데이트 상태 타입
 interface PendingRecommendationUpdate {
   isScheduled: boolean;
   countdown: number;
@@ -85,7 +81,6 @@ type RatingChangeCallback = (
   oldRating: number
 ) => void;
 
-// Auth 상태 인터페이스
 interface AuthState {
   user: User | null;
   isFirebaseReady: boolean;
@@ -113,10 +108,9 @@ interface UseSongsReturn {
 }
 
 export const useSongs = (authState?: AuthState): UseSongsReturn => {
-  // 기본 상태들
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false); // 추천 관련 상태들
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const [hasRecommendations, setHasRecommendations] = useState(false);
   const [isLoadingRecommendations, setIsLoadingRecommendations] =
@@ -129,7 +123,7 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
       isScheduled: false,
       countdown: 0,
       isCalculating: false,
-    }); // 원본 곡 목록
+    });
 
   const user = authState?.user || null;
   const isFirebaseReady = authState?.isFirebaseReady || false;
@@ -146,7 +140,7 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
     } else {
       setError(null);
     }
-  }; // 🔧 백그라운드 추천 계산 (재시도 로직 포함)
+  };
 
   const updateRecommendationsInBackground = useCallback(async () => {
     if (!user?.uid) return;
@@ -236,7 +230,6 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
     } catch (error: any) {
       console.error("❌ 백그라운드 추천 계산 실패:", error);
       setPendingRecommendationUpdate({
-        // 🔧 실패 시에도 상태 초기화
         isScheduled: false,
         countdown: 0,
         isCalculating: false,
@@ -248,13 +241,12 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
 
   const onRatingChanged = useCallback(
     (videoId: string, newRating: number, oldRating: number) => {
-      // 🔕 별점 변경을 감지하지만, 아무것도(재계산) 하지 않습니다.
       console.log(
         `⭐ 별점 변경됨: ${videoId} ${oldRating} -> ${newRating}. (자동 재계산 비활성화됨)`
       );
     },
-    [] // ➖ 의존성 모두 제거
-  ); // 지연된 추천 업데이트 스케줄링
+    []
+  );
 
   const scheduleRecommendationUpdate = useCallback(
     (delay: number = 0) => {
@@ -270,7 +262,7 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
   }, []);
   const applyPendingRecommendations = useCallback(async () => {
     console.log("applyPendingRecommendations (비활성화됨)");
-  }, []); // 추천 데이터 로드
+  }, []);
 
   const loadRecommendations = async (
     userId: string,
@@ -311,13 +303,12 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
     } finally {
       setIsLoadingRecommendations(false);
     }
-  }; // 곡 목록을 추천 순서로 정렬
+  };
 
   const loadInitialData = async () => {
     try {
       console.log("📥 초기 데이터 로드 시작...");
       
-      // 1. 캐시된 데이터 먼저 로드 (속도 향상)
       const cachedSongs = await getCachedSongs();
       let initialSongs: Song[] = [];
       if (cachedSongs.length > 0) {
@@ -328,22 +319,17 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
 
       setOriginalSongs(initialSongs);
 
-      // 2. 추천 목록 로드
       if (isAuthReady && user?.uid) {
         await loadRecommendations(user.uid);
       }
 
-      // 3. [복구 완료] 하루에 한 번만 새 데이터 확인 (비용 절감)
-      // 테스트 할 때 'const shouldCheck = true;' 로 했던 것을 다시 되돌립니다.
       const shouldCheck = await shouldCheckForNewData(); 
 
       if (shouldCheck) {
         console.log("🔍 [BG] 정기 데이터 업데이트 확인 중...");
         
-        // 오늘 처음 켜는 거라면 서버에서 데이터 가져오기
         await updateDataFromFirebase(true); 
         
-        // "오늘 체크했음" 도장 찍기
         await markTodayAsChecked();
       } else {
         console.log("👍 [BG] 오늘은 이미 최신 데이터를 확인했습니다.");
@@ -395,7 +381,7 @@ export const useSongs = (authState?: AuthState): UseSongsReturn => {
     } finally {
       setIsUpdating(false);
     }
-  }; // 수동 새로고침
+  };
 
   const refreshData = async (): Promise<void> => {
     try {

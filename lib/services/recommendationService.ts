@@ -1,22 +1,19 @@
 // lib/services/recommendationService.ts
-// 🎯 일본 음악 추천 시스템 - 클라이언트 서비스
 
 import { httpsCallable, connectFunctionsEmulator } from "firebase/functions";
 import { functions } from "@/lib/config/firebase";
 import { Song } from "@/lib/types/song";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// 상수 정의
 const RECOMMENDATIONS_CACHE_KEY = "user-recommendations";
 const RECOMMENDATIONS_CACHE_EXPIRY_KEY = "recommendations-cache-expiry";
-const CACHE_DURATION = 60 * 60 * 1000; // 1시간 (밀리초)
+const CACHE_DURATION = 60 * 60 * 1000;
 
-// 타입 정의
 export interface UserRecommendation {
   userId: string;
-  songs: string[]; // videoId 배열
-  scores?: Record<string, number>; // 각 곡의 추천 점수
-  categories?: Record<string, any>; // 상세 카테고리별 점수
+  songs: string[];
+  scores?: Record<string, number>;
+  categories?: Record<string, any>;
   generatedAt: string;
   processingTime?: number;
   userRatingCount?: number;
@@ -29,13 +26,11 @@ export interface RecommendationServiceResponse {
   error?: string;
 }
 
-// 🔧 Firebase Functions 호출 래퍼
 class RecommendationService {
   private getUserRecommendationsFunction: any;
   private generateUserRecommendationsFunction: any;
 
   constructor() {
-    // Firebase Functions 초기화
     this.getUserRecommendationsFunction = httpsCallable(
       functions,
       "getUserRecommendations"
@@ -45,9 +40,7 @@ class RecommendationService {
       "generateUserRecommendations"
     );
 
-    // 개발 환경에서 Functions 에뮬레이터 연결 (필요시)
     if (__DEV__ && false) {
-      // 에뮬레이터 사용 시 true로 변경
       try {
         connectFunctionsEmulator(functions, "localhost", 5001);
         console.log("🔧 Functions 에뮬레이터 연결됨");
@@ -57,7 +50,6 @@ class RecommendationService {
     }
   }
 
-  // 📥 사용자 추천 데이터 가져오기 (캐시 우선)
   async getUserRecommendations(
     userId: string,
     forceRefresh: boolean = false
@@ -71,7 +63,6 @@ class RecommendationService {
         return [];
       }
 
-      // 1. 캐시 확인 (새로고침이 아닌 경우)
       if (!forceRefresh) {
         const cachedRecommendations = await this.getCachedRecommendations(
           userId
@@ -86,7 +77,6 @@ class RecommendationService {
         }
       }
 
-      // 2. Firebase Functions에서 추천 데이터 조회 (실제 추천)
       try {
         console.log("🔍 Firebase Functions 호출 중...", { userId: userId });
         const result = await this.getUserRecommendationsFunction({ userId });
@@ -102,12 +92,10 @@ class RecommendationService {
             "곡"
           );
 
-          // 캐시에 저장
           await this.cacheRecommendations(userId, recommendations);
           return recommendations;
         } else {
           console.log("📭 서버에 추천 데이터 없음, 더미 추천 사용");
-          // Functions는 성공했지만 추천 데이터가 없음 -> 더미 추천
           const dummyRecommendations = this.generateDummyRecommendations();
           if (dummyRecommendations.length > 0) {
             await this.cacheRecommendations(userId, dummyRecommendations);
@@ -141,7 +129,6 @@ class RecommendationService {
     } catch (error: any) {
       console.error("❌ 추천 조회 실패:", error);
 
-      // 최종 에러 시 캐시된 데이터라도 반환 시도
       const cachedRecommendations = await this.getCachedRecommendations(userId);
       if (cachedRecommendations.length > 0) {
         console.log(
@@ -152,24 +139,21 @@ class RecommendationService {
         return cachedRecommendations;
       }
 
-      return []; // 모든 시도 실패 시 빈 배열
+      return [];
     }
   }
-
-  // 🧪 임시 더미 추천 생성 (Functions 안 될 때 사용)
+\
   private generateDummyRecommendations(): string[] {
-    // 실제 videoId들 (앱에 있는 곡들)
     const availableVideoIds = [
-      "oZpYEEcvu5I", // tuki.『晩餐歌』
-      "mX9IJ7Urn28", // 月面着陸計画
-      "goCvO7uJhu8", // tuki.『純恋愛のインゴット』
+      "oZpYEEcvu5I",
+      "mX9IJ7Urn28",
+      "goCvO7uJhu8",
       "4Bqaflz8XZU",
       "F8p-5hGLe7s",
       "QjZKNhEMeM4",
       "K3XcXH8_ZlY",
     ];
 
-    // 랜덤하게 5-7곡 선택해서 추천 순서 생성
     const shuffled = [...availableVideoIds].sort(() => Math.random() - 0.5);
     const selectedCount = Math.min(
       5 + Math.floor(Math.random() * 3),
@@ -180,12 +164,10 @@ class RecommendationService {
     return shuffled.slice(0, selectedCount);
   }
 
-  // 🤖 새로운 추천 생성 요청
   async generateUserRecommendations(userId: string): Promise<boolean> {
     try {
       console.log(`🎯 새로운 추천 생성 요청: ${userId}`);
 
-      // userId 유효성 검사
       if (!userId || typeof userId !== "string" || userId.trim() === "") {
         console.error("❌ 유효하지 않은 userId:", userId);
         return false;
@@ -202,7 +184,6 @@ class RecommendationService {
       if (response.success) {
         console.log("✅ 추천 생성 성공");
 
-        // 생성 후 즉시 새 데이터 가져와서 캐시 갱신
         if (response.data?.songs) {
           await this.cacheRecommendations(userId, response.data.songs);
         }
@@ -223,7 +204,6 @@ class RecommendationService {
     }
   }
 
-  // 🗂️ 캐시 관리 - 추천 데이터 저장
   private async cacheRecommendations(
     userId: string,
     recommendations: string[]
@@ -248,7 +228,6 @@ class RecommendationService {
     }
   }
 
-  // 📂 캐시 관리 - 추천 데이터 조회
   private async getCachedRecommendations(userId: string): Promise<string[]> {
     try {
       const cacheKey = `${RECOMMENDATIONS_CACHE_KEY}_${userId}`;
@@ -259,7 +238,6 @@ class RecommendationService {
         AsyncStorage.getItem(expiryKey),
       ]);
 
-      // 캐시 만료 확인
       if (expiryData) {
         const expiry = parseInt(expiryData, 10);
         if (Date.now() > expiry) {
@@ -283,7 +261,6 @@ class RecommendationService {
     }
   }
 
-  // 🗑️ 캐시 관리 - 추천 캐시 삭제
   async clearRecommendationsCache(userId: string): Promise<void> {
     try {
       const cacheKey = `${RECOMMENDATIONS_CACHE_KEY}_${userId}`;
@@ -300,7 +277,6 @@ class RecommendationService {
     }
   }
 
-  // 🔄 추천 데이터 강제 새로고침
   async refreshRecommendations(userId: string): Promise<string[]> {
     console.log("🔄 추천 데이터 강제 새로고침");
     await this.clearRecommendationsCache(userId);
@@ -308,10 +284,8 @@ class RecommendationService {
   }
 }
 
-// 🏭 싱글톤 인스턴스 생성
 const recommendationService = new RecommendationService();
 
-// 🎯 메인 추천 함수들 (useSongs에서 사용할 함수들)
 export const getUserRecommendations = (
   userId: string,
   forceRefresh?: boolean
@@ -326,7 +300,6 @@ export const refreshRecommendations = (userId: string) =>
 export const clearRecommendationsCache = (userId: string) =>
   recommendationService.clearRecommendationsCache(userId);
 
-// 🛠️ 유틸리티 함수들
 export const sortSongsByRecommendations = (
   songs: Song[],
   recommendationOrder: string[]
@@ -347,7 +320,6 @@ export const sortSongsByRecommendations = (
     priorityMap.set(videoId, index);
   });
 
-  // 1. 추천 곡 / 비추천 곡 분리
   const recommendedSongs: (Song & { priority: number })[] = [];
   const otherSongs: Song[] = [];
 
@@ -358,15 +330,15 @@ export const sortSongsByRecommendations = (
     } else {
       otherSongs.push(song);
     }
-  }); // 2. 추천 곡: 점수(priority) 순으로 정렬
+  });
 
-  recommendedSongs.sort((a, b) => a.priority - b.priority); // 3. 비추천 곡: 랜덤 셔플 (Fisher-Yates 알고리즘)
+  recommendedSongs.sort((a, b) => a.priority - b.priority);
 
   console.log(`🔀 비추천 곡 ${otherSongs.length}개 랜덤 셔플 중...`);
   for (let i = otherSongs.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [otherSongs[i], otherSongs[j]] = [otherSongs[j], otherSongs[i]];
-  } // 4. 두 목록 병합
+  }
 
   const sortedSongs = [...recommendedSongs, ...otherSongs];
 
@@ -379,7 +351,6 @@ export const sortSongsByRecommendations = (
   return sortedSongs;
 };
 
-// 🧪 개발/디버깅용 함수들
 export const getRecommendationStats = async (userId: string) => {
   try {
     const recommendations = await getUserRecommendations(userId);

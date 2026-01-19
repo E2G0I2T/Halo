@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "9597600331-lnrm9tt77aff9bk5o3bliafer2mhs0a6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.egoista.japanmusicapp",
+            "certificate_hash": "78c541eb6525c144318048a02f82d877ce6aa946"
+          }
+        },
+        {
           "client_id": "9597600331-5q75bthvmqql01ga66s528se448eg64u.apps.googleusercontent.com",
           "client_type": 3
         }

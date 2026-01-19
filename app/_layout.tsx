@@ -29,10 +29,8 @@ function RootLayoutNav() {
     }
   }, [loaded, isAuthReady]);
 
-  // ✅ Navigation 준비 확인
   useEffect(() => {
     if (loaded && isAuthReady && !loading) {
-      // 약간의 지연을 주어 Root Layout이 완전히 마운트되도록 함
       const timer = setTimeout(() => {
         setIsNavigationReady(true);
       }, 50);
@@ -40,7 +38,6 @@ function RootLayoutNav() {
     }
   }, [loaded, isAuthReady, loading]);
 
-  // ✅ Navigation 로직 - isNavigationReady가 true일 때만 실행
   useEffect(() => {
     if (!isNavigationReady) return;
 
@@ -55,7 +52,6 @@ function RootLayoutNav() {
     }
   }, [user, segments, isNavigationReady]);
 
-  // ✅ 로딩 중에는 로딩 화면 표시
   if (!loaded || !isAuthReady || !isNavigationReady) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>

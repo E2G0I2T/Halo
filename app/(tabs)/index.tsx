@@ -12,7 +12,6 @@ import LoadingScreen from "@/components/LoadingScreen";
 import { Ionicons } from "@expo/vector-icons";
 import { Song } from "@/lib/types/song";
 
-// 필터 타입 정의
 type RatingFilter = "all" | "rated" | "unrated";
 
 interface PendingRecommendationUpdate {
@@ -301,7 +300,7 @@ export default function IndexScreen() {
 
   const songData = useSongs(authStateForUseSongs);
   const {
-    songs, // ⬅️ useSongs가 이미 [T2(추천) + T3(셔플)] 정렬을 완료해서 보낸 목록
+    songs,
     loading: songsLoading,
     error,
     isUpdating,
@@ -333,9 +332,9 @@ export default function IndexScreen() {
   useEffect(() => {
   const timer = setTimeout(() => {
     setDebouncedSearchText(searchText);
-  }, 300); // 300ms 딜레이
+  }, 300);
 
-  return () => clearTimeout(timer); // 타이핑이 계속되면 이전 타이머 취소
+  return () => clearTimeout(timer);
 }, [searchText]);
 
   useEffect(() => {
@@ -344,7 +343,6 @@ export default function IndexScreen() {
   }, [Boolean(_internal?.onRatingChanged), Boolean(setOnRatingChangeCallback)]);
 
   useEffect(() => {
-    // 초기 로딩 시, ratings가 로드되면 스냅샷 저장
     if (songs.length > 0 && Object.keys(ratings).length > 0 && Object.keys(frozenRatings).length === 0) {
       console.log("🧊 초기 별점 스냅샷 저장");
       setFrozenRatings(ratings);
@@ -395,7 +393,6 @@ export default function IndexScreen() {
       }
     });
 
-    // 1. T1(별점) 안정적 정렬
     ratedSongs.sort((a, b) => {
       const ratingA = getSnapshotRating(a.videoId);
       const ratingB = getSnapshotRating(b.videoId);
@@ -409,7 +406,7 @@ export default function IndexScreen() {
     
     return [...ratedSongs, ...otherSongs];
 
-  }, [bufferedSongs, frozenRatings, ratings]); // recommendationOrder 의존성 제거
+  }, [bufferedSongs, frozenRatings, ratings]);
 
   const filteredData = useMemo(() => {
     const safeSongs = Array.isArray(finalSongList) ? finalSongList : [];
@@ -420,21 +417,18 @@ export default function IndexScreen() {
 
     const lower = debouncedSearchText.toLowerCase();
     
-    return safeSongs.filter((song: any) => { // song 타입에 search_keywords가 없으면 any로 처리하거나 타입 정의 수정
+    return safeSongs.filter((song: any) => {
       if (!song || typeof song !== "object") return false;
       
       const safeTitle = song.title || "";
       const safeArtist = song.artist || "";
       
-      // 1. 제목/가수 검색
       if (safeTitle.toLowerCase().includes(lower) || 
           safeArtist.toLowerCase().includes(lower)) {
         return true;
       }
 
-      // 2. ✨ 숨겨진 키워드 검색
       if (song.search_keywords && Array.isArray(song.search_keywords)) {
-        // 배열 안에 검색어가 포함된 항목이 하나라도 있으면 True
         return song.search_keywords.some((keyword: string) => 
           keyword.toLowerCase().includes(lower)
         );

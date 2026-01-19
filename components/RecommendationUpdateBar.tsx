@@ -1,5 +1,4 @@
 // components/RecommendationUpdateBar.tsx
-// 부드러운 추천 업데이트 알림 바 컴포넌트
 
 import React, { useEffect, useRef } from 'react';
 import {
@@ -37,7 +36,6 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
   
-  // 테마별 색상 정의
   const colors = {
     background: isDarkMode ? '#2c2c2c' : '#f8f9fa',
     border: isDarkMode ? '#404040' : '#e9ecef',
@@ -49,15 +47,12 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
     progressBar: isCalculating ? '#ffc107' : '#007bff',
   };
   
-  // 애니메이션 값들
-  const slideAnim = useRef(new Animated.Value(-100)).current; // 위에서 아래로 슬라이드
-  const progressAnim = useRef(new Animated.Value(0)).current; // 진행 바
-  const scaleAnim = useRef(new Animated.Value(0.95)).current; // 버튼 스케일
+  const slideAnim = useRef(new Animated.Value(-100)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
-  // 슬라이드 인/아웃 애니메이션
   useEffect(() => {
     if (isVisible) {
-      // 슬라이드 인
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -73,7 +68,6 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
         }),
       ]).start();
     } else {
-      // 슬라이드 아웃
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: -100,
@@ -89,24 +83,20 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
     }
   }, [isVisible]);
 
-  // 카운트다운 진행 바 애니메이션
   useEffect(() => {
     if (isVisible && countdown > 0) {
-      // 진행 바를 카운트다운에 맞춰 감소
-      const progressValue = countdown / 3; // 3초 기준
+      const progressValue = countdown / 3;
       
       Animated.timing(progressAnim, {
         toValue: progressValue,
-        duration: 1000, // 1초마다 업데이트
-        useNativeDriver: false, // width 애니메이션은 native driver 사용 불가
+        duration: 1000,
+        useNativeDriver: false,
       }).start();
     } else if (!isVisible) {
-      // 숨길 때 진행 바 리셋
       progressAnim.setValue(0);
     }
   }, [countdown, isVisible]);
 
-  // 렌더링하지 않을 조건
   if (!isVisible) {
     return null;
   }
@@ -116,7 +106,7 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
       style={[
         {
           position: 'absolute',
-          top: Platform.OS === 'ios' ? 50 : 25, // 상태바 높이 고려
+          top: Platform.OS === 'ios' ? 50 : 25,
           left: 16,
           right: 16,
           zIndex: 1000,
@@ -125,7 +115,6 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
           borderWidth: 1,
           borderColor: colors.border,
           overflow: 'hidden',
-          // 그림자 효과
           shadowColor: '#000',
           shadowOffset: {
             width: 0,
@@ -143,7 +132,6 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
         },
       ]}
     >
-      {/* 상단 진행 바 */}
       <View style={{
         height: 3,
         backgroundColor: colors.progressBg,
@@ -160,12 +148,10 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
         />
       </View>
 
-      {/* 메인 콘텐츠 */}
       <View style={{
         paddingHorizontal: 16,
         paddingVertical: 12,
       }}>
-        {/* 상단 메시지 */}
         <View style={{
           flexDirection: 'row',
           alignItems: 'center',
@@ -189,7 +175,6 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
           </Text>
         </View>
 
-        {/* 카운트다운 또는 로딩 상태 */}
         {isCalculating ? (
           <View style={{
             flexDirection: 'row',
@@ -223,12 +208,10 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
           </Text>
         )}
 
-        {/* 액션 버튼들 */}
         <View style={{
           flexDirection: 'row',
           gap: 8,
         }}>
-          {/* 나중에 버튼 */}
           <TouchableOpacity
             onPress={onCancel}
             style={{
@@ -252,7 +235,6 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
             </Text>
           </TouchableOpacity>
 
-          {/* 지금 적용 버튼 */}
           <TouchableOpacity
             onPress={onApply}
             disabled={isCalculating || !hasNewOrder}
@@ -285,7 +267,6 @@ export const RecommendationUpdateBar: React.FC<RecommendationUpdateBarProps> = (
           </TouchableOpacity>
         </View>
 
-        {/* 힌트 텍스트 */}
         {!isCalculating && (
           <Text style={{
             fontSize: 10,

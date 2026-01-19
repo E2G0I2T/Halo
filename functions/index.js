@@ -94,7 +94,7 @@ exports.generatePersonalizedRecommendations = onCall(async (request) => {
     userId = userId.trim();
     functions.logger.info(`👤 사용자 ID 확인됨: ${userId}`);
 
-    // 🔍 사용자 별점 데이터 조회 (모든 가능한 경로 확인)
+    // 사용자 별점 데이터 조회
     const possiblePaths = [
       `users/${userId}/ratings`,
       `ratings/${userId}`,
@@ -157,11 +157,11 @@ exports.generatePersonalizedRecommendations = onCall(async (request) => {
       }
     }
 
-    // 🔍 특정 문서 직접 확인 (컬렉션에서 못 찾은 경우)
+    // 특정 문서 직접 확인
     if (ratingsData.length === 0) {
       functions.logger.info("🔄 특정 문서 직접 확인 시도...");
 
-      // 알려진 videoId로 테스트
+      // videoId로 테스트
       const testVideoIds = ["oZpYEEcvu5I"];
 
       for (const testVideoId of testVideoIds) {
@@ -221,14 +221,14 @@ exports.generatePersonalizedRecommendations = onCall(async (request) => {
       }
     }
 
-    // 📊 결과 분석
+    // 결과 분석
     const userRatingCount = ratingsData.length;
     const validRatings = ratingsData
       .filter((r) => r.rating > 0 && !r.deleted)
       .map((r) => ({
         videoId: r.videoId || r.id,
         rating: r.rating,
-        artist: r.artist || null, // ⬅️ artist 필드 추출 (없으면 null)
+        artist: r.artist || null, // artist 필드 추출 (없으면 null)
       }));
     const validRatingCount = validRatings.length;
 
@@ -240,7 +240,7 @@ exports.generatePersonalizedRecommendations = onCall(async (request) => {
     // 실행 시간 계산
     const executionTime = Date.now() - startTime;
 
-    // 🎯 응답 생성
+    // 응답 생성
     if (validRatingCount === 0) {
       functions.logger.info("📭 유효한 별점 없음 - 기본 추천 반환");
 
@@ -267,7 +267,7 @@ exports.generatePersonalizedRecommendations = onCall(async (request) => {
       `🎯 개인화 추천 생성: ${validRatingCount}개 별점 기반`
     );
 
-    // 🔄 개인화 추천 로직 실행
+    // 개인화 추천 로직 실행
     const recommendations = await generatePersonalizedLogic(
       userId,
       validRatings
@@ -312,9 +312,6 @@ exports.generatePersonalizedRecommendations = onCall(async (request) => {
   }
 });
 
-/**
- * 🎵 개인화 추천 로직 (신규 구현)
- */
 async function generatePersonalizedLogic(userId, validRatings) {
   const db = getDb();
   functions.logger.info(
@@ -459,52 +456,6 @@ exports.healthCheck = onRequest({ invoker: "public" }, (request, response) => {
   }
 });
 
-exports.testFirestore = onCall(async (request) => {
-  const data = request.data;
-  const auth = request.auth;
-  const db = getDb();
-  try {
-    functions.logger.info("Firestore 연결 테스트 시작");
-
-    const usersSnapshot = await db.collection("users").limit(5).get();
-    const userCount = usersSnapshot.size;
-
-    let ratingsCount = 0;
-    let firstUserId = null;
-
-    if (!usersSnapshot.empty) {
-      firstUserId = usersSnapshot.docs[0].id;
-      const ratingsSnapshot = await db
-        .collection("users")
-        .doc(firstUserId)
-        .collection("ratings")
-        .limit(10)
-        .get();
-      ratingsCount = ratingsSnapshot.size;
-    }
-
-    const result = {
-      success: true,
-      timestamp: moment().format("YYYY-MM-DD HH:mm:ss"),
-      data: {
-        userCount,
-        sampleRatingsCount: ratingsCount,
-        sampleUserId: firstUserId,
-        message: "Firestore 연결 성공",
-      },
-    };
-
-    functions.logger.info("Firestore 테스트 완료", result);
-    return result;
-  } catch (error) {
-    functions.logger.error("Firestore 테스트 실패", error);
-    throw new functions.https.HttpsError(
-      "internal",
-      `Firestore 연결 실패: ${error.message}`
-    );
-  }
-});
-
 exports.calculateGlobalStats = onRequest(
   {
     timeoutSeconds: 540,
@@ -559,7 +510,7 @@ exports.calculateGlobalStats = onRequest(
           success: false,
           message: "처리할 사용자 데이터 없음",
         });
-        return; // ⬅️ [수정] 함수 종료
+        return;
       }
 
       let totalRatings = 0;
@@ -584,7 +535,7 @@ exports.calculateGlobalStats = onRequest(
               typeof rating.rating === "number" &&
               rating.rating > 0 &&
               rating.videoId &&
-              rating.artist && // ⬅️ artist 확인
+              rating.artist &&
               !rating.deleted;
 
             if (isValidRating) {
@@ -595,7 +546,7 @@ exports.calculateGlobalStats = onRequest(
                   totalScore: 0,
                   ratingCount: 0,
                   videoId: rating.videoId,
-                  artist: rating.artist, // ⬅️ artist 저장
+                  artist: rating.artist,
                 };
               }
               songStats[rating.videoId].totalScore += rating.rating;
@@ -617,10 +568,10 @@ exports.calculateGlobalStats = onRequest(
         userIds: userIds,
       };
 
-      functions.logger.info("📈 최종 통계:", finalStats); // 🔧 7단계: 여전히 0이면 상세 디버깅
+      functions.logger.info("📈 최종 통계:", finalStats);
 
       if (totalRatings === 0) {
-        functions.logger.error("🚨 여전히 별점 0개! 상세 분석 필요"); // 첫 번째 사용자의 첫 번째 별점 문서 상세 분석
+        functions.logger.error("🚨 여전히 별점 0개! 상세 분석 필요");
 
         if (userIds.length > 0) {
           try {
@@ -653,7 +604,7 @@ exports.calculateGlobalStats = onRequest(
           success: false,
           message: "별점 데이터 처리 실패",
         });
-        return; // ⬅️ [수정] 함수 종료
+        return;
       }
 
       functions.logger.info("🧮 베이지안 평균 계산...");
@@ -687,7 +638,7 @@ exports.calculateGlobalStats = onRequest(
               song.ratingCount
             }회)`
         )
-      ); // 🔧 9단계: 최종 결과
+      );
 
       const globalStats = {
         totalUsers: actualTotalUsers,
@@ -988,7 +939,7 @@ exports.dailyRecommendationBatch = onRequest(
       response.status(500).json({
         success: false,
         error: error.message,
-        timestamp: moment().format("YYYY-MM-DD HH:mm:ss"), // ⬅️ 이제 안전함
+        timestamp: moment().format("YYYY-MM-DD HH:mm:ss"),
       });
     }
   }
@@ -1005,7 +956,7 @@ exports.getUserRecommendations = onCall(async (request) => {
       authUid: auth ? auth.uid : null,
     });
 
-    // 🎯 중첩된 데이터 구조 처리
+    // 중첩된 데이터 구조 처리
     let userId;
     if (data && data.data && data.data.userId) {
       userId = data.data.userId;
@@ -1150,47 +1101,6 @@ async function generateDefaultRecommendations(userId) {
     return ["oZpYEEcvu5I", "mX9IJ7Urn28", "goCvO7uJhu8"];
   }
 }
-
-exports.testEcho = onCall(async (request) => {
-  const data = request.data;
-  const auth = request.auth;
-  try {
-    functions.logger.info("testEcho 호출됨 - 상세 분석", {
-      data: data,
-      dataType: typeof data,
-      hasData: !!(data && data.data),
-      hasUserId: !!(data && data.userId),
-      hasNestedUserId: !!(data && data.data && data.data.userId),
-      nestedUserId: data && data.data ? data.data.userId : null,
-      directUserId: data ? data.userId : null,
-      auth: auth && auth.uid ? auth.uid : null,
-    });
-
-    // 중첩된 구조 처리
-    let userId = null;
-    if (data && data.data && data.data.userId) {
-      userId = data.data.userId;
-    } else if (data && data.userId) {
-      userId = data.userId;
-    }
-
-    return {
-      success: true,
-      echo: data,
-      extractedUserId: userId,
-      dataStructureAnalysis: {
-        hasData: !!(data && data.data),
-        hasDirectUserId: !!(data && data.userId),
-        hasNestedUserId: !!(data && data.data && data.data.userId),
-      },
-      message: "파라미터 수신 테스트 완료",
-      timestamp: new Date().toISOString(),
-    };
-  } catch (error) {
-    functions.logger.error("💥 testEcho 오류:", error);
-    return { success: false, error: error.message };
-  }
-});
 
 exports.getUserRatings = onCall(async (request) => {
   const db = getDb();

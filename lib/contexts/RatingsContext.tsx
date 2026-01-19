@@ -11,7 +11,6 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, getUserId } from "@/lib/contexts/AuthContext";
 
-// 동적 import를 위한 Firebase 서비스
 let FirestoreRatingsService: any = null;
 let createRatingsService: any = null;
 
@@ -27,18 +26,15 @@ const loadFirebaseService = async (): Promise<boolean> => {
   }
 };
 
-// 🧹 정리: 상수들을 한 곳에 모음
 const STORAGE_KEYS = {
   RATINGS: "song-ratings",
   SYNC_STATUS: "ratings-sync-status",
 } as const;
 
-// 🧹 정리: 더 명확한 타입 정의
 interface SyncStatus {
   readonly lastSyncTime: number;
 }
 
-// 🆕 별점 변경 콜백 타입
 type RatingChangeCallback = (
   videoId: string,
   newRating: number,
@@ -52,7 +48,7 @@ interface RatingsContextType {
   readonly loading: boolean;
   readonly isSyncing: boolean;
   readonly lastSyncTime: number;
-  forceSyncFromCloud: () => Promise<void>; // 🆕 콜백 시스템
+  forceSyncFromCloud: () => Promise<void>;
   setOnRatingChangeCallback: (callback: RatingChangeCallback | null) => void;
 }
 
@@ -103,7 +99,7 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({
       }
     },
     []
-  ); // 📥 [순서 변경] 1. loadInitialData 선언
+  );
 
   const loadInitialData = useCallback(async (): Promise<void> => {
     try {
@@ -122,7 +118,7 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({
     } finally {
       setLoading(false);
     }
-  }, []); // [순서 변경] 2. saveRatingsLocally 선언
+  }, []);
 
   const saveRatingsLocally = useCallback(
     async (newRatings: Record<string, number>): Promise<void> => {
@@ -137,7 +133,7 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({
       }
     },
     []
-  ); // [순서 변경] 3. delete/upload 선언
+  );
   const deleteRatingFromCloud = useCallback(
     async (videoId: string): Promise<void> => {
       if (!ratingsService) return;
@@ -231,7 +227,7 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({
       return ratings[videoId] || 0;
     },
     [ratings]
-  ); // [순서 변경] 5. forceSyncFromCloud 선언
+  );
 
   const forceSyncFromCloud = useCallback(
     async (overrideUserId?: string): Promise<void> => {
@@ -281,7 +277,7 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({
       }
     },
     [user, ratingsService]
-  ); // [순서 변경] 6. syncFromCloud / conditionalSyncFromCloud 선언
+  );
 
   const syncFromCloud = useCallback(async (): Promise<void> => {
     if (!ratingsService) return;
@@ -315,7 +311,7 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({
         if (__DEV__) console.warn("⚠️ 자동 동기화 실패 (무시):", error);
       }
     }
-  }, [lastSyncTime, syncFromCloud]); // [순서 변경] 7. useEffect 훅 (선언된 함수들에 의존)
+  }, [lastSyncTime, syncFromCloud]);
 
   useEffect(() => {
     const currentUserId = user ? user.uid : null;
@@ -344,7 +340,7 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({
 
   useEffect(() => {
     loadInitialData();
-  }, [loadInitialData]); // [순서 변경] 8. useMemo (모든 함수가 선언된 후)
+  }, [loadInitialData]);
 
   const contextValue = useMemo(
     () => ({
@@ -375,7 +371,7 @@ export const RatingsProvider: React.FC<RatingsProviderProps> = ({
     </RatingsContext.Provider>
   );
 };
-// 🔗 커스텀 훅
+
 export const useRatings = () => {
   const context = useContext(RatingsContext);
   if (!context) {

@@ -1,4 +1,4 @@
-import React, { useCallback, memo } from "react";
+import React, { useCallback, memo, useMemo } from "react";
 import { View, Text, FlatList, TouchableOpacity } from "react-native";
 import { Image } from "expo-image"; 
 import { useAppStyles } from "@/theme/styles";
@@ -9,7 +9,6 @@ import { useFavorites } from "@/lib/contexts/FavoritesContext";
 import { useRatings } from "@/lib/contexts/RatingsContext";
 import MyBannerAd from "./MyBannerAd";
 
-// 타입 정의
 export type SongItem = {
   type: "song";
   key: string;
@@ -59,12 +58,11 @@ const SongListItem = memo(
           />
 
           <View style={{ flex: 1 }}>
-            <Text style={[styles.text, { marginBottom: 4 }]}>{song.title}</Text>
-            <Text style={[styles.text, { fontSize: 14, opacity: 0.7 }]}>
+            <Text style={[styles.text, { marginBottom: 4 }]} numberOfLines={1}>{song.title}</Text>
+            <Text style={[styles.text, { fontSize: 14, opacity: 0.7 }]} numberOfLines={1}>
               {song.artist}
             </Text>
 
-            {/* 별점 UI */}
             <View style={{ flexDirection: "row", marginTop: 4 }}>
               {[0, 1, 2, 3, 4].map((starIndex) => {
                 const isSelected = starIndex < rating;
@@ -109,38 +107,30 @@ const SongListItem = memo(
         </View>
       </View>
     );
-  },
-  (prev, next) => {
-    return (
-      prev.isFav === next.isFav &&
-      prev.rating === next.rating &&
-      prev.song.videoId === next.song.videoId
-    );
   }
 );
 
 export default function SongList({ songs, showAds = true }: SongListProps) {
   const styles = useAppStyles();
   const router = useRouter();
-  const { toggleFavorite, isFavorite } = useFavorites();
-  const { setRating, getRating } = useRatings();
+  
+  const { toggleFavorite, isFavorite, favorites } = useFavorites();
+  const { setRating, getRating, ratings } = useRatings();
 
-  const insertAds = (items: Song[], interval = 5): ListItem[] => {
+  const dataWithAds = useMemo(() => {
     const merged: ListItem[] = [];
-    for (let i = 0; i < items.length; i++) {
-      if (showAds && i > 0 && i % interval === 0) {
+    for (let i = 0; i < songs.length; i++) {
+      if (showAds && i > 0 && i % 5 === 0) {
         merged.push({ type: "ad", key: `ad-${i}` });
       }
       merged.push({
         type: "song",
-        key: items[i].videoId,
-        ...items[i],
+        key: songs[i].videoId,
+        ...songs[i],
       });
     }
     return merged;
-  };
-
-  const dataWithAds = insertAds(songs);
+  }, [songs, showAds]);
 
   const handleToggleFavorite = useCallback(
     (id: string) => {
@@ -151,7 +141,7 @@ export default function SongList({ songs, showAds = true }: SongListProps) {
 
   const handleRate = useCallback(
     (videoId: string, artist: string, starIndex: number) => {
-      const currentRating = getRating(videoId); 
+      const currentRating = ratings[videoId] || 0; 
       const newRating = starIndex + 1;
       if (currentRating === newRating) {
         setRating(videoId, 0, artist);
@@ -159,7 +149,7 @@ export default function SongList({ songs, showAds = true }: SongListProps) {
         setRating(videoId, newRating, artist);
       }
     },
-    [setRating, getRating]
+    [setRating, ratings]
   );
 
   const handlePressSong = useCallback(
@@ -179,27 +169,31 @@ export default function SongList({ songs, showAds = true }: SongListProps) {
   const renderItem = useCallback(
     ({ item }: { item: ListItem }) => {
       if (item.type === "ad") {
-        return (
-          <View style={{ alignItems: 'center', paddingVertical: 10 }}>
-            <MyBannerAd />
-          </View>
-        );
+        return null;
+        // return (
+        //   <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+        //     <MyBannerAd />
+        //   </View>
+        // );
       }
 
       const song = item as SongItem;
       
+      const isFav = isFavorite(song.videoId);
+      const rating = getRating(song.videoId);
+
       return (
         <SongListItem
           song={song}
-          isFav={isFavorite(song.videoId)}
-          rating={getRating(song.videoId)}
+          isFav={isFav}
+          rating={rating}
           onToggleFavorite={handleToggleFavorite}
           onRate={handleRate}
           onPress={handlePressSong}
         />
       );
     },
-    [isFavorite, getRating, handleToggleFavorite, handleRate, handlePressSong]
+    [isFavorite, getRating, handleToggleFavorite, handleRate, handlePressSong, favorites, ratings]
   );
 
   const renderEmptyComponent = () => (
@@ -223,6 +217,7 @@ export default function SongList({ songs, showAds = true }: SongListProps) {
       maxToRenderPerBatch={8}
       windowSize={5}
       removeClippedSubviews={true}
+      extraData={[favorites, ratings]}
     />
   );
 }
